@@ -6,8 +6,6 @@ import {
 } from './dates.js';
 import { esc } from './ui-tasks.js';
 
-export const HOUR_PX = 44;
-
 // Ampel: bis 66 % grün, bis 85 % gelb, darüber rot
 export function loadClass(ratio) {
   if (ratio <= 0.66) return 'g';
@@ -35,7 +33,7 @@ function percent(load) {
 
 // ---------- Monat ----------
 
-export function renderMonth(model, anchor) {
+export function renderMonth(model, anchor, selected) {
   const first = startOfMonth(anchor);
   const month = first.slice(0, 7);
   const start = startOfWeek(first);
@@ -47,10 +45,10 @@ export function renderMonth(model, anchor) {
     if (i === 35 && date.slice(0, 7) !== month) break; // nur 5 Wochen, wenn der Monat hineinpasst
     const load = model.load(date, byDate.get(date) || []);
     cells += `
-      <div class="mday ${date.slice(0, 7) !== month ? 'other' : ''} ${date === t ? 'today' : ''} ${load.capacity === 0 ? 'off' : ''}"
+      <div class="mday ${date.slice(0, 7) !== month ? 'other' : ''} ${date === t ? 'today' : ''} ${date === selected ? 'selected' : ''} ${load.capacity === 0 ? 'off' : ''}"
            data-drop="day" data-date="${date}" data-goto-week="${date}" title="Zur Wochenansicht">
         <div class="mday-top">
-          <span class="mday-num">${parse(date).getDate()}</span>
+          <span class="mday-num">${parse(date).getDate()}</span>${date === t ? '<span class="today-tag">heute</span>' : ''}
           ${load.count ? `<span class="mday-count">${load.count} ${load.count === 1 ? 'Aufgabe' : 'Aufgaben'}</span>` : ''}
         </div>
         ${bar(load)}
@@ -67,13 +65,22 @@ export function renderMonth(model, anchor) {
 
 // ---------- Woche ----------
 
-export function renderWeek(model, anchor) {
+// Sichtbarer Zeitraum der Wochenansicht in Minuten (Einstellung "von/bis")
+export function range(settings) {
+  return { from: settings.coreStart * 60, to: settings.coreEnd * 60 };
+}
+
+const pct = (min, r) => ((min - r.from) / (r.to - r.from)) * 100;
+
+export function renderWeek(model, anchor, selected) {
   const start = startOfWeek(anchor);
   const t = today();
-  const s = model.settings();
+  const r = range(model.settings());
+  const hours = (r.to - r.from) / 60;
   const byDate = groupByDate(model.bookings());
   const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
   const titleOf = (b) => model.task(b.taskId)?.title ?? '(gelöschte Aufgabe)';
+  const dayClass = (date) => `${date === t ? 'today' : ''} ${date === selected ? 'selected' : ''} ${model.capacity(date) === 0 ? 'off' : ''}`;
 
   const heads = days
     .map((date) => {
@@ -81,8 +88,8 @@ export function renderWeek(model, anchor) {
       const load = model.load(date, list);
       const reserved = list.filter((b) => !b.start).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
       return `
-        <div class="wday-head ${date === t ? 'today' : ''}" data-drop="day" data-date="${date}">
-          <div class="wday-title"><b>${weekdayShort(date)}</b> ${fmtDate(date)}</div>
+        <div class="wday-head ${dayClass(date)}" data-drop="day" data-date="${date}">
+          <div class="wday-title"><b>${weekdayShort(date)}</b> ${fmtDate(date)}${date === t ? ' <span class="today-tag">heute</span>' : ''}</div>
           ${bar(load)}
           <div class="wday-load">
             <span>${fmtHours(load.minutes)} / <button class="cap" data-cap="${date}" title="Kapazität für diesen Tag ändern">${fmtHours(load.capacity)} h</button>
@@ -102,7 +109,7 @@ export function renderWeek(model, anchor) {
     })
     .join('');
 
-  const hours = Array.from({ length: 24 }, (_, h) => `<div class="hlabel" style="top:${h * HOUR_PX}px">${String(h).padStart(2, '0')}:00</div>`).join('');
+  const labels = Array.from({ length: hours }, (_, i) => `<div class="hlabel" style="top:${(i / hours) * 100}%">${String(r.from / 60 + i).padStart(2, '0')}:00</div>`).join('');
 
   const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
   const cols = days
@@ -110,21 +117,22 @@ export function renderWeek(model, anchor) {
       const scheduled = (byDate.get(date) || []).filter((b) => b.start);
       const blocks = layout(scheduled)
         .map(({ b, lane, lanes }) => {
-          const top = (fromHHMM(b.start) / 60) * HOUR_PX;
-          const height = Math.max((b.minutes / 60) * HOUR_PX, 18);
-          const end = toHHMM(Math.min(fromHHMM(b.start) + b.minutes, 24 * 60));
-          return `<div class="block" data-drag="booking" data-id="${b.id}" data-booking="${b.id}" data-label="${esc(titleOf(b))}"
-                       style="top:${top}px;height:${height}px;left:calc(${(lane / lanes) * 100}% + 2px);width:calc(${100 / lanes}% - 4px)">
+          const startMin = fromHHMM(b.start);
+          const endMin = Math.min(startMin + b.minutes, 24 * 60);
+          // Termine außerhalb des sichtbaren Zeitraums an den Rand legen, damit sie nicht verschwinden
+          const top = Math.min(Math.max(pct(startMin, r), 0), 97);
+          const bottom = Math.min(Math.max(pct(endMin, r), top + 3), 100);
+          return `<div class="block ${startMin < r.from || endMin > r.to ? 'outside' : ''}" data-drag="booking" data-id="${b.id}" data-booking="${b.id}" data-label="${esc(titleOf(b))}"
+                       style="top:${top}%;height:${bottom - top}%;left:calc(${(lane / lanes) * 100}% + 2px);width:calc(${100 / lanes}% - 4px)">
                     <div class="block-title">${esc(titleOf(b))}</div>
-                    <div class="block-time">${b.start}–${end} · ${fmtDuration(b.minutes)}</div>
+                    <div class="block-time">${b.start}–${toHHMM(endMin)} · ${fmtDuration(b.minutes)}</div>
                     <div class="resize" data-nodrag data-resize="${b.id}" title="Dauer ziehen"></div>
                   </div>`;
         })
         .join('');
       return `
-        <div class="wday-grid ${date === t ? 'today' : ''}" data-drop="time" data-date="${date}" style="height:${24 * HOUR_PX}px">
-          <div class="core" style="top:${s.coreStart * HOUR_PX}px;height:${(s.coreEnd - s.coreStart) * HOUR_PX}px"></div>
-          ${date === t ? `<div class="now" style="top:${(nowMin / 60) * HOUR_PX}px"></div>` : ''}
+        <div class="wday-grid ${dayClass(date)}" data-drop="time" data-date="${date}">
+          ${date === t && nowMin >= r.from && nowMin <= r.to ? `<div class="now" style="top:${pct(nowMin, r)}%"></div>` : ''}
           ${blocks}
         </div>`;
     })
@@ -132,10 +140,10 @@ export function renderWeek(model, anchor) {
 
   return `
     <div class="week-scroll">
-      <div class="week">
+      <div class="week" style="--hours:${hours}">
         <div class="corner"></div>
         ${heads}
-        <div class="hours" style="height:${24 * HOUR_PX}px">${hours}</div>
+        <div class="hours">${labels}</div>
         ${cols}
       </div>
     </div>`;
@@ -173,10 +181,18 @@ function groupByDate(bookings) {
   return map;
 }
 
-// Startzeit aus der Zeigerposition in einer Tagesspalte (auf 15 min gerundet)
-export function timeAt(target, y, offsetY, minutes) {
+// Startzeit aus der Zeigerposition in einer Tagesspalte (auf 15 min gerundet, innerhalb des Zeitraums)
+export function timeAt(target, y, offsetY, minutes, r) {
   const rect = target.getBoundingClientRect();
-  const raw = ((y - rect.top - offsetY) / HOUR_PX) * 60;
+  const raw = r.from + ((y - rect.top - offsetY) / rect.height) * (r.to - r.from);
   const snapped = Math.round(raw / 15) * 15;
-  return Math.max(0, Math.min(snapped, 24 * 60 - Math.min(minutes, 24 * 60)));
+  return Math.max(r.from, Math.min(snapped, r.to - Math.min(minutes, r.to - r.from)));
 }
+
+// Minuten pro Pixel in einer Tagesspalte (für das Ziehen der Dauer)
+export function minutesPerPx(grid, r) {
+  return (r.to - r.from) / grid.getBoundingClientRect().height;
+}
+
+// Position einer Uhrzeit in Prozent der Spaltenhöhe
+export const percentOf = pct;

@@ -1,6 +1,7 @@
 // Aufgabenliste (linke Seite)
 
 import { today, daysBetween, fmtDate, weekdayShort, fmtHours } from './dates.js';
+import { sortKey } from './model.js';
 
 export const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -25,9 +26,7 @@ export function visibleTasks(model, filter) {
       if (!filter.followUps && task.followUp && task.followUp > t) return false;
       return [...filter.tags].every((tag) => (task.tags || []).includes(tag));
     })
-    .sort((a, b) =>
-      filter.archive ? b.archivedAt.localeCompare(a.archivedAt) : b.createdAt.localeCompare(a.createdAt),
-    );
+    .sort((a, b) => (filter.archive ? b.archivedAt.localeCompare(a.archivedAt) : sortKey(a) - sortKey(b)));
 }
 
 export function renderTaskFilters(model, filter) {

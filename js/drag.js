@@ -4,7 +4,9 @@
 
 const EDGE = 48;
 
-export function setupDrag({ describe, onDrop }) {
+// accepts(payload, target): darf hier abgelegt werden?
+// hover(payload, target, point): Einfügemarke zeichnen (bei Ende mit payload = null)
+export function setupDrag({ accepts, describe, hover, onDrop }) {
   let pending = null;
   let drag = null;
   let last = { x: 0, y: 0 };
@@ -32,16 +34,22 @@ export function setupDrag({ describe, onDrop }) {
     navigator.vibrate?.(10);
   }
 
+  function findTarget(x, y) {
+    const target = document.elementFromPoint(x, y)?.closest('[data-drop]') || null;
+    return target && accepts(drag.payload, target) ? target : null;
+  }
+
   function move(x, y) {
     last = { x, y };
-    drag.ghost.style.transform = `translate(${x + 12}px, ${y + 12}px)`;
-    const target = document.elementFromPoint(x, y)?.closest('[data-drop]') || null;
+    drag.ghost.style.transform = `translate(${x + 12}px, ${y - drag.ghost.offsetHeight - 10}px)`; // über dem Zeiger, damit die Einfügemarke sichtbar bleibt
+    const target = findTarget(x, y);
     if (target !== drag.target) {
       drag.target?.classList.remove('drop-hover');
       target?.classList.add('drop-hover');
       drag.target = target;
     }
     drag.ghost.querySelector('.drag-where').textContent = target ? describe(drag.payload, target, { x, y }) : '';
+    hover(drag.payload, target, { x, y });
   }
 
   // Scrollbereiche am Rand automatisch mitscrollen lassen
@@ -65,12 +73,15 @@ export function setupDrag({ describe, onDrop }) {
 
   function end(drop) {
     if (drag) {
-      const { payload, target } = drag;
+      // Ziel neu bestimmen: der Kalender kann inzwischen geblättert haben
       drag.ghost.remove();
+      const { payload } = drag;
+      const target = findTarget(last.x, last.y);
+      drag.target?.classList.remove('drop-hover');
       drag.el.classList.remove('drag-source');
-      target?.classList.remove('drop-hover');
       document.body.classList.remove('dragging');
       drag = null;
+      hover(null, null, last);
       // den Klick, der direkt nach dem Loslassen folgt, verschlucken
       addEventListener('click', swallow, { capture: true });
       setTimeout(() => removeEventListener('click', swallow, { capture: true }), 0);

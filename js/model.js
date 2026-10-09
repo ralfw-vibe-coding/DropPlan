@@ -15,6 +15,9 @@ export const DEFAULT_SETTINGS = {
   coreEnd: 18,
 };
 
+// Reihenfolge in der Liste: kleiner = weiter oben. Ältere Aufgaben ohne "order" nach Anlagezeit (neueste oben).
+export const sortKey = (task) => task.order ?? -Date.parse(task.createdAt) / 1e6;
+
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const now = () => new Date().toISOString();
 
@@ -77,8 +80,10 @@ export class Model {
   // ---- Aufgaben ----
 
   addTask(title) {
+    const keys = this.tasks().map(sortKey);
     const task = {
       id: newId(),
+      order: (keys.length ? Math.min(...keys) : 0) - 1,
       title,
       notes: '',
       tags: [],
@@ -95,6 +100,18 @@ export class Model {
   updateTask(id, patch) {
     const task = this.task(id);
     if (task) this.store.put(`/tasks/${id}.json`, { ...task, ...patch });
+  }
+
+  // Aufgabe in der Liste zwischen zwei andere schieben (null = Anfang bzw. Ende)
+  moveTask(id, beforeId, afterId) {
+    const before = beforeId && this.task(beforeId);
+    const after = afterId && this.task(afterId);
+    let order;
+    if (before && after) order = (sortKey(before) + sortKey(after)) / 2;
+    else if (before) order = sortKey(before) + 1;
+    else if (after) order = sortKey(after) - 1;
+    else return;
+    this.updateTask(id, { order });
   }
 
   deleteTask(id) {

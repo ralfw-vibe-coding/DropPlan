@@ -8,7 +8,7 @@ import { deleteCache } from './idb.js';
 import { Model } from './model.js';
 import { setupDrag } from './drag.js';
 import { renderTaskFilters, renderTaskList, esc } from './ui-tasks.js';
-import { renderWeek, renderMonth, timeAt, HOUR_PX } from './ui-calendar.js';
+import { renderWeek, renderMonth, timeAt, range, percentOf, minutesPerPx } from './ui-calendar.js';
 import {
   today, addDays, addMonths, startOfWeek, isoWeek, monthTitle, weekdayShort, fmtDate, fmtDateLong,
   fmtDuration, fmtHours, parseDuration, toHHMM, fromHHMM, weekdayIndex, WEEKDAYS,
@@ -30,6 +30,7 @@ const prefs = (() => {
 const ui = {
   view: prefs.view || 'week',
   anchor: today(),
+  selected: null, // in der Monatsansicht angeklickter Tag, in der Woche umrandet
   filter: { tags: new Set(prefs.tags || []), followUps: false, archive: false },
 };
 function savePrefs() {
@@ -77,14 +78,16 @@ async function main() {
     renderSync();
     if (!dataChanged || queued) return;
     queued = true;
-    requestAnimationFrame(() => {
+    // gebündelt neu zeichnen (setTimeout statt requestAnimationFrame, das in Hintergrund-Tabs pausiert)
+    setTimeout(() => {
       queued = false;
       render();
-    });
+    }, 0);
   });
   render();
   renderSync();
-  setupDrag({ describe, onDrop });
+  setupDrag({ accepts, describe, hover, onDrop });
+  setupPan();
   wireEvents();
   store.start();
 }
@@ -106,7 +109,11 @@ function showConnect(message = '') {
 
 function render() {
   $('#filters').innerHTML = renderTaskFilters(model, ui.filter);
-  $('#task-list').innerHTML = renderTaskList(model, ui.filter);
+  const list = $('#task-list');
+  list.innerHTML = renderTaskList(model, ui.filter);
+  // Umsortieren nur in der normalen Liste, nicht im Archiv
+  if (ui.filter.archive) delete list.dataset.drop;
+  else list.dataset.drop = 'list';
   renderCalendar();
 }
 
@@ -115,26 +122,28 @@ function renderCalendar() {
   const body = $('#cal-body');
   if (ui.view === 'month') {
     $('#cal-title').textContent = monthTitle(ui.anchor);
-    body.innerHTML = renderMonth(model, ui.anchor);
+    body.innerHTML = renderMonth(model, ui.anchor, ui.selected);
+    body.dataset.week = '';
+    body.classList.add('pannable');
     return;
   }
   const start = startOfWeek(ui.anchor);
   const end = addDays(start, 6);
   $('#cal-title').textContent = `KW ${isoWeek(start)} · ${fmtDate(start)}–${fmtDate(end)}${end.slice(0, 4)}`;
-  // Scrollposition beim Neuzeichnen derselben Woche behalten
+  // Horizontale Scrollposition (schmale Bildschirme) beim Neuzeichnen derselben Woche behalten
   const old = body.querySelector('.week-scroll');
-  const keep = old && body.dataset.week === start ? { top: old.scrollTop, left: old.scrollLeft } : null;
-  body.innerHTML = renderWeek(model, ui.anchor);
+  const keepLeft = old && body.dataset.week === start ? old.scrollLeft : null;
+  body.innerHTML = renderWeek(model, ui.anchor, ui.selected);
   body.dataset.week = start;
   const sc = body.querySelector('.week-scroll');
-  if (keep) {
-    sc.scrollTop = keep.top;
-    sc.scrollLeft = keep.left;
-  } else {
-    sc.scrollTop = Math.max(0, (model.settings().coreStart - 1) * HOUR_PX);
-    const todayCol = sc.querySelector('.wday-head.today');
-    if (todayCol && sc.scrollWidth > sc.clientWidth) sc.scrollLeft = todayCol.offsetLeft - 52;
+  const overflowX = sc.scrollWidth > sc.clientWidth;
+  if (keepLeft !== null) sc.scrollLeft = keepLeft;
+  else if (overflowX) {
+    const col = sc.querySelector('.wday-head.selected') || sc.querySelector('.wday-head.today');
+    if (col) sc.scrollLeft = col.offsetLeft - 52;
   }
+  // Blättern per Wischen nur, wenn die Woche nicht ohnehin seitlich scrollt
+  body.classList.toggle('pannable', !overflowX);
 }
 
 function renderSync() {
@@ -164,28 +173,175 @@ function renderSync() {
 
 // ---------- Ziehen & Ablegen ----------
 
-function titleFor(payload) {
-  if (payload.kind === 'task') return model.task(payload.id)?.title;
-  const b = model.booking(payload.id);
-  return b && model.task(b.taskId)?.title;
+const durationOf = (payload) =>
+  payload.kind === 'booking' ? model.booking(payload.id)?.minutes ?? 30 : model.settings().defaultMinutes;
+
+function accepts(payload, target) {
+  return target.dataset.drop !== 'list' || payload.kind === 'task';
+}
+
+// Zwischen welche Aufgaben der Liste würde eingefügt?
+function listSlot(payload, point) {
+  const items = [...document.querySelectorAll('#task-list .task')].filter((li) => li.dataset.id !== payload.id);
+  const i = items.findIndex((li) => {
+    const r = li.getBoundingClientRect();
+    return point.y < r.top + r.height / 2;
+  });
+  const idx = i < 0 ? items.length : i;
+  return { prev: items[idx - 1] || null, next: items[idx] || null };
 }
 
 function dropTarget(payload, target, point) {
   const date = target.dataset.date;
   if (target.dataset.drop === 'day') return { date, start: null };
-  const minutes = payload.kind === 'booking' ? model.booking(payload.id)?.minutes ?? 30 : model.settings().defaultMinutes;
-  return { date, start: toHHMM(timeAt(target, point.y, payload.offsetY, minutes)) };
+  const r = range(model.settings());
+  return { date, start: toHHMM(timeAt(target, point.y, payload.offsetY, durationOf(payload), r)) };
 }
 
 function describe(payload, target, point) {
+  if (target.dataset.drop === 'list') return '';
   const { date, start } = dropTarget(payload, target, point);
   return `→ ${weekdayShort(date)} ${fmtDate(date)}${start ? ` · ${start}` : ' · reservieren'}`;
 }
 
+// Einfügemarke: Strich in der Liste, Vorschau im Stundenraster, Platzhalter im Tageskopf
+const marker = document.createElement('div');
+
+function hover(payload, target, point) {
+  edgeFlip(payload, point);
+  marker.remove();
+  if (!payload || !target) return;
+  const kind = target.dataset.drop;
+  if (kind === 'list') {
+    const { prev, next } = listSlot(payload, point);
+    marker.className = 'insert-line';
+    marker.textContent = '';
+    marker.style.cssText = `top:${(next ? next.offsetTop : prev ? prev.offsetTop + prev.offsetHeight : 0) - 1}px`;
+    target.append(marker);
+  } else if (kind === 'time') {
+    const r = range(model.settings());
+    const s = fromHHMM(dropTarget(payload, target, point).start);
+    const e = s + durationOf(payload);
+    marker.className = 'drop-preview';
+    marker.textContent = `${toHHMM(s)}–${toHHMM(e)}`;
+    marker.style.cssText = `top:${percentOf(s, r)}%;height:${percentOf(e, r) - percentOf(s, r)}%`;
+    target.append(marker);
+  } else if (target.classList.contains('wday-head')) {
+    marker.className = 'chip-placeholder';
+    marker.textContent = `+ ${fmtDuration(durationOf(payload))}`;
+    marker.style.cssText = '';
+    target.querySelector('.reserved').append(marker);
+  }
+}
+
 function onDrop(payload, target, point) {
+  if (target.dataset.drop === 'list') {
+    const { prev, next } = listSlot(payload, point);
+    model.moveTask(payload.id, prev?.dataset.id, next?.dataset.id);
+    return;
+  }
   const { date, start } = dropTarget(payload, target, point);
   if (payload.kind === 'task') model.plan(payload.id, date, start);
   else model.updateBooking(payload.id, { date, start });
+}
+
+// Beim Ziehen kurz am linken/rechten Kalenderrand verweilen = blättern
+const flip = { dir: 0, timer: null };
+
+function edgeFlip(payload, point) {
+  const body = $('#cal-body');
+  const r = body.getBoundingClientRect();
+  const sc = body.querySelector('.week-scroll');
+  let dir = 0;
+  if (payload && point.y > r.top && point.y < r.bottom) {
+    if (point.x >= r.left && point.x < r.left + 28) dir = -1;
+    else if (point.x <= r.right && point.x > r.right - 28) dir = 1;
+  }
+  // solange die Woche noch seitlich scrollen kann, erst scrollen statt blättern
+  if (sc && dir < 0 && sc.scrollLeft > 0) dir = 0;
+  if (sc && dir > 0 && sc.scrollLeft + sc.clientWidth < sc.scrollWidth - 1) dir = 0;
+  body.classList.toggle('flip-prev', dir < 0);
+  body.classList.toggle('flip-next', dir > 0);
+  if (dir === flip.dir) return;
+  clearInterval(flip.timer);
+  flip.dir = dir;
+  if (dir) flip.timer = setInterval(() => slide(dir), 900);
+}
+
+// Blättern mit kleiner Animation
+function slide(dir) {
+  navigate(dir);
+  $('#cal-body').firstElementChild?.animate(
+    [{ transform: `translateX(${dir * 30}%)`, opacity: 0.2 }, { transform: 'none', opacity: 1 }],
+    { duration: 220, easing: 'ease-out' },
+  );
+}
+
+// Kalender mit Maus/Finger seitlich ziehen oder auf dem Trackpad wischen = blättern
+function setupPan() {
+  const body = $('#cal-body');
+  let pan = null;
+  const swallow = (e) => e.stopPropagation();
+
+  body.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || !body.classList.contains('pannable')) return;
+    if (e.target.closest('[data-drag], [data-nodrag], button, input, a')) return;
+    pan = { x: e.clientX, y: e.clientY, id: e.pointerId, active: false };
+  });
+  body.addEventListener('pointermove', (e) => {
+    if (!pan || e.pointerId !== pan.id) return;
+    const dx = e.clientX - pan.x;
+    const dy = e.clientY - pan.y;
+    if (!pan.active) {
+      if (Math.abs(dx) < 8) return;
+      if (Math.abs(dy) > Math.abs(dx)) {
+        pan = null;
+        return;
+      }
+      pan.active = true;
+      body.setPointerCapture(e.pointerId);
+      body.classList.add('panning');
+    }
+    body.firstElementChild.style.transform = `translateX(${dx}px)`;
+  });
+  const finish = (e) => {
+    if (!pan || e.pointerId !== pan.id) return;
+    const p = pan;
+    pan = null;
+    if (!p.active) return;
+    body.classList.remove('panning');
+    addEventListener('click', swallow, { capture: true });
+    setTimeout(() => removeEventListener('click', swallow, { capture: true }), 0);
+    const dx = e.clientX - p.x;
+    const content = body.firstElementChild;
+    if (e.type === 'pointerup' && Math.abs(dx) > Math.min(120, body.clientWidth * 0.2)) {
+      content.style.transform = '';
+      slide(dx < 0 ? 1 : -1);
+    } else {
+      content.animate([{ transform: `translateX(${dx}px)` }, { transform: 'none' }], { duration: 180, easing: 'ease-out' });
+      content.style.transform = '';
+    }
+  };
+  body.addEventListener('pointerup', finish);
+  body.addEventListener('pointercancel', finish);
+
+  let acc = 0;
+  let lockUntil = 0;
+  body.addEventListener(
+    'wheel',
+    (e) => {
+      if (!body.classList.contains('pannable') || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      if (Date.now() < lockUntil) return; // Nachschwingen des Trackpads ignorieren
+      acc += e.deltaX;
+      if (Math.abs(acc) > 80) {
+        slide(acc > 0 ? 1 : -1);
+        acc = 0;
+        lockUntil = Date.now() + 900;
+      }
+    },
+    { passive: false },
+  );
 }
 
 // Dauer eines Termins im Raster am unteren Rand ziehen
@@ -194,14 +350,18 @@ function startResize(e, id) {
   e.stopPropagation();
   const b = model.booking(id);
   const block = e.target.closest('.block');
+  const r = range(model.settings());
+  const mpp = minutesPerPx(block.closest('.wday-grid'), r);
   const startY = e.clientY;
   const startMin = b.minutes;
-  const maxMin = 24 * 60 - fromHHMM(b.start);
+  const s0 = fromHHMM(b.start);
+  const maxMin = 24 * 60 - s0;
+  const top = Math.min(Math.max(percentOf(s0, r), 0), 97);
   let minutes = startMin;
   const move = (ev) => {
-    minutes = Math.max(15, Math.min(maxMin, startMin + Math.round(((ev.clientY - startY) / HOUR_PX) * 4) * 15));
-    block.style.height = `${(minutes / 60) * HOUR_PX}px`;
-    block.querySelector('.block-time').textContent = `${b.start}–${toHHMM(fromHHMM(b.start) + minutes)} · ${fmtDuration(minutes)}`;
+    minutes = Math.max(15, Math.min(maxMin, startMin + Math.round(((ev.clientY - startY) * mpp) / 15) * 15));
+    block.style.height = `${Math.max(Math.min(percentOf(s0 + minutes, r), 100) - top, 3)}%`;
+    block.querySelector('.block-time').textContent = `${b.start}–${toHHMM(s0 + minutes)} · ${fmtDuration(minutes)}`;
   };
   const up = () => {
     removeEventListener('pointermove', move);
@@ -396,7 +556,10 @@ function saveSettings() {
 // ---------- Ereignisse ----------
 
 function navigate(dir) {
-  if (dir === 0) ui.anchor = today();
+  if (dir === 0) {
+    ui.anchor = today();
+    ui.selected = null;
+  }
   else if (ui.view === 'week') ui.anchor = addDays(ui.anchor, dir * 7);
   else ui.anchor = addMonths(ui.anchor, dir);
   renderCalendar();
@@ -451,6 +614,7 @@ function wireEvents() {
       if ($('#task-dialog').open) $('#task-dialog').close();
       ui.view = 'week';
       ui.anchor = goto.dataset.gotoWeek;
+      ui.selected = goto.dataset.gotoWeek;
       savePrefs();
       renderCalendar();
     }
