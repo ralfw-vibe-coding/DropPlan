@@ -144,11 +144,22 @@ function renderSync() {
     idle: pending ? `${pending} Änderung(en) offen` : 'gespeichert',
     syncing: 'synchronisiere …',
     offline: `offline${pending ? ` · ${pending} offen` : ''}`,
-    error: 'Sync-Fehler',
+    error: `Sync-Fehler: ${message.replace(/^Dropbox: /, '')}`,
   };
   el.className = `sync ${state}`;
   el.textContent = texts[state];
   el.title = message || '';
+  // Berechtigungen der Dropbox-App wurden geändert: die alte Anmeldung kennt sie noch nicht
+  if (state === 'error' && dbx && /missing_scope|required scope/.test(message)) {
+    el.innerHTML = `Dropbox-Berechtigung fehlt · <a href="#" id="reconnect">neu verbinden</a>`;
+    $('#reconnect').onclick = async (e) => {
+      e.preventDefault();
+      store.stop();
+      await dbx.logout();
+      await deleteCache(CACHE_DROPBOX).catch(() => {});
+      dbx.login();
+    };
+  }
 }
 
 // ---------- Ziehen & Ablegen ----------

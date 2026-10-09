@@ -7,7 +7,7 @@ Reine statische Web-App ohne Server und ohne Build-Schritt. Die Daten liegen als
 ## Ausprobieren ohne Dropbox
 
 ```bash
-python3 -m http.server 8080
+python3 dev-server.py
 ```
 
 Dann <http://localhost:8080/?local> öffnen. Die Daten liegen dann im localStorage, der hier die Dropbox nachbildet. Zwei Tabs mit `?local=a` und `?local=b` verhalten sich wie zwei Geräte an derselben Dropbox.

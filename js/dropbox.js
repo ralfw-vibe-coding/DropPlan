@@ -130,13 +130,16 @@ export class Dropbox {
         continue;
       }
       if (!res.ok) {
-        let summary = `HTTP ${res.status}`;
+        // Dropbox antwortet mit JSON (error_summary) oder bei falschen Anfragen mit Klartext
+        const text = await res.text();
+        let summary;
         try {
-          summary = (await res.json()).error_summary || summary;
+          summary = JSON.parse(text).error_summary;
         } catch {
-          // Antwort war kein JSON
+          // kein JSON
         }
-        throw new DbxError(summary, res.status);
+        const endpoint = new URL(url).pathname.replace('/2/', '');
+        throw new DbxError(summary || `HTTP ${res.status} bei ${endpoint}: ${text.slice(0, 300)}`, res.status);
       }
       return res;
     }

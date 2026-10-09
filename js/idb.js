@@ -16,6 +16,7 @@ export async function openCache(name) {
     open.result.createObjectStore('meta');
   };
   const db = await req(open);
+  db.onversionchange = () => db.close(); // sonst blockiert deleteCache() in diesem Tab
   const tx = (store, mode = 'readonly') => db.transaction(store, mode).objectStore(store);
   return {
     allFiles: () => req(tx('files').getAll()),
