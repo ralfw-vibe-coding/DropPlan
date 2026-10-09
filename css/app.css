@@ -534,6 +534,8 @@ legend { font-size: 13px; color: var(--muted); padding: 0 4px; }
 }
 .close-x:hover { background: var(--offhours); color: var(--text); }
 dialog form { position: relative; }
-dialog .title-input, dialog h3 { margin-right: 30px; }
+dialog form > .close-x { top: -8px; right: -8px; } /* in die Ecke des Dialogs */
+dialog .title-input { width: calc(100% - 28px); }
+dialog h3 { margin-right: 28px; }
 .popover { padding-right: 36px; }
 .popover .close-x { top: 6px; right: 6px; }
