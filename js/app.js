@@ -146,6 +146,7 @@ function updateWeekTitle(sc) {
 
 function onWeekScroll(e) {
   const sc = e.currentTarget;
+  if (!sc.isConnected) return; // alter Streifen nach dem Wechsel in den Monat
   updateWeekTitle(sc);
   clearTimeout(scrollTimer);
   scrollTimer = setTimeout(() => {

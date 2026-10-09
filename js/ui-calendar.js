@@ -1,7 +1,7 @@
 // Kalender (rechte Seite): Monatsansicht mit Auslastungsbalken, Wochenansicht mit Stundenraster
 
 import {
-  today, addDays, startOfWeek, startOfMonth, weekdayShort, fmtDate, fmtHours, fmtDuration,
+  today, addDays, startOfWeek, startOfMonth, weekdayShort, weekdayIndex, fmtDate, fmtHours, fmtDuration,
   toHHMM, fromHHMM, parse, isoWeek, WEEKDAYS,
 } from './dates.js';
 import { esc } from './ui-tasks.js';
@@ -31,6 +31,15 @@ function percent(load) {
   return load.capacity > 0 ? `${Math.round(load.ratio * 100)} %` : 'Überstunden';
 }
 
+// Freie Tage: Wochenende immer grau; Wochenende mit Kapazität zusätzlich schraffiert;
+// Werktag ohne Kapazität (Urlaub, Feiertag) ebenfalls grau
+function offClasses(date, capacity) {
+  const weekend = weekdayIndex(date) >= 5;
+  return [weekend && 'weekend', weekend && capacity > 0 && 'weekend-work', !weekend && capacity === 0 && 'off']
+    .filter(Boolean)
+    .join(' ');
+}
+
 // ---------- Monat ----------
 
 export function renderMonth(model, anchor, selected) {
@@ -45,7 +54,7 @@ export function renderMonth(model, anchor, selected) {
     if (i === 35 && date.slice(0, 7) !== month) break; // nur 5 Wochen, wenn der Monat hineinpasst
     const load = model.load(date, byDate.get(date) || []);
     cells += `
-      <div class="mday ${date.slice(0, 7) !== month ? 'other' : ''} ${date === t ? 'today' : ''} ${date === selected ? 'selected' : ''} ${load.capacity === 0 ? 'off' : ''}"
+      <div class="mday ${date.slice(0, 7) !== month ? 'other' : ''} ${date === t ? 'today' : ''} ${date === selected ? 'selected' : ''} ${offClasses(date, load.capacity)}"
            data-drop="day" data-date="${date}" data-goto-week="${date}" title="Zur Wochenansicht">
         <div class="mday-top">
           <span class="mday-num">${parse(date).getDate()}</span>${date === t ? '<span class="today-tag">heute</span>' : ''}
@@ -82,7 +91,7 @@ export function renderWeek(model, start, count, selected) {
   const byDate = groupByDate(model.bookings());
   const days = Array.from({ length: count }, (_, i) => addDays(start, i));
   const titleOf = (b) => model.task(b.taskId)?.title ?? '(gelöschte Aufgabe)';
-  const dayClass = (date) => `${date === t ? 'today' : ''} ${date === selected ? 'selected' : ''} ${model.capacity(date) === 0 ? 'off' : ''}`;
+  const dayClass = (date) => `${date === t ? 'today' : ''} ${date === selected ? 'selected' : ''} ${offClasses(date, model.capacity(date))}`;
 
   const heads = days
     .map((date) => {
