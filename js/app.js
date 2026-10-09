@@ -489,7 +489,7 @@ function startResize(e, id) {
 const popover = $('#popover');
 
 function openPopover(anchorEl, html, wire) {
-  popover.innerHTML = html;
+  popover.innerHTML = `<button type="button" class="close-x" data-close title="Schließen" aria-label="Schließen">×</button>${html}`;
   popover.hidden = false;
   const r = anchorEl.getBoundingClientRect();
   const pw = popover.offsetWidth;
@@ -755,6 +755,15 @@ function wireEvents() {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closePopover();
   });
+
+  // Kleines × oben rechts: Popover bzw. Dialog schließen (Einstellungen ohne Speichern)
+  document.addEventListener('click', (e) => {
+    const x = e.target.closest('[data-close]');
+    if (!x) return;
+    e.stopPropagation();
+    if (popover.contains(x)) return closePopover();
+    x.closest('dialog')?.close('cancel');
+  }, true);
 
   // Aufgabendialog: Änderungen sofort speichern
   const form = $('#task-form');

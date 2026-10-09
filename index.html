@@ -59,6 +59,7 @@
   <!-- Aufgabe bearbeiten -->
   <dialog id="task-dialog">
     <form method="dialog" id="task-form" autocomplete="off">
+      <button type="button" class="close-x" data-close title="Schließen" aria-label="Schließen">×</button>
       <input name="title" class="title-input" placeholder="Titel" required>
       <div class="status-line" id="task-status"></div>
       <label>Notiz<textarea name="notes" rows="5"></textarea></label>
@@ -81,6 +82,7 @@
   <!-- Einstellungen -->
   <dialog id="settings-dialog">
     <form method="dialog" id="settings-form">
+      <button type="button" class="close-x" data-close title="Schließen" aria-label="Schließen">×</button>
       <h3>Einstellungen</h3>
       <label>Standard-Dauer beim Einplanen (Minuten)<input type="number" name="defaultMinutes" min="5" step="5"></label>
       <fieldset>

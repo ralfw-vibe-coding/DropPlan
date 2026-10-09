@@ -516,3 +516,24 @@ fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px 
 legend { font-size: 13px; color: var(--muted); padding: 0 4px; }
 .weekday-caps { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
 .weekday-caps input { padding: 5px 4px; text-align: center; }
+
+/* Schließen-Knopf oben rechts in Dialogen und Popovers */
+.close-x {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+}
+.close-x:hover { background: var(--offhours); color: var(--text); }
+dialog form { position: relative; }
+dialog .title-input, dialog h3 { margin-right: 30px; }
+.popover { padding-right: 36px; }
+.popover .close-x { top: 6px; right: 6px; }
