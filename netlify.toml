@@ -1,0 +1,4 @@
+# Statische Seite ohne Build-Schritt
+[build]
+  publish = "."
+  command = ""
