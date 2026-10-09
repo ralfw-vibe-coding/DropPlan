@@ -65,6 +65,8 @@ export function renderMonth(model, anchor, selected) {
 
 // ---------- Woche ----------
 
+const CLOCK_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.5V8l2.5 1.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+
 // Sichtbarer Zeitraum der Wochenansicht in Minuten (Einstellung "von/bis")
 export function range(settings) {
   return { from: settings.coreStart * 60, to: settings.coreEnd * 60 };
@@ -103,7 +105,7 @@ export function renderWeek(model, start, count, selected) {
                   <span class="cb-title">${esc(titleOf(b))}</span><span class="cb-dur">${fmtDuration(b.minutes)}</span></div>`,
               )
               .join('')}
-            ${reserved.length ? '' : `<div class="reserved-hint">hierher ziehen = Zeit reservieren</div>`}
+            ${reserved.length ? '' : `<div class="reserved-hint" title="Hierher ziehen: Zeit reservieren (ohne Uhrzeit)">${CLOCK_ICON}</div>`}
           </div>
         </div>`;
     })

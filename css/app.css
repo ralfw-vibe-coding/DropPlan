@@ -299,7 +299,7 @@ body.resizing, body.resizing * { cursor: col-resize !important; user-select: non
 /* beim Ziehen frei scrollen, eingerastet wird danach */
 .panning .week-scroll, body.dragging .week-scroll { scroll-snap-type: none; }
 .wday-head.monday, .wday-grid.monday { border-left: 2px solid var(--line-strong); }
-.kw { margin-left: auto; font-size: 11px; color: var(--muted); }
+.kw { margin-left: auto; font-size: 11px; color: var(--muted); white-space: nowrap; }
 .week {
   flex: 1;
   display: grid;
@@ -321,7 +321,17 @@ body.resizing, body.resizing * { cursor: col-resize !important; user-select: non
 .wday-load span:first-child { color: var(--text); }
 .cap { padding: 0 4px; border: 1px dashed var(--line-strong); font-size: 12px; }
 .reserved { display: flex; flex-direction: column; gap: 3px; min-height: 26px; max-height: 150px; overflow-y: auto; }
-.reserved-hint { font-size: 11px; color: var(--muted); border: 1px dashed var(--line-strong); border-radius: 5px; padding: 4px; text-align: center; }
+.reserved-hint {
+  height: 22px;
+  display: grid;
+  place-items: center;
+  color: var(--line-strong);
+  border: 1px dashed var(--line-strong);
+  border-radius: 5px;
+  background: repeating-linear-gradient(-45deg, transparent 0 5px, var(--offhours) 5px 7px);
+}
+.wday-head:hover .reserved-hint { color: var(--muted); }
+.drop-hover .reserved-hint { color: var(--accent); border-color: var(--accent); }
 .reserved:has(.chip-placeholder) .reserved-hint { display: none; }
 .chip-booking {
   display: flex;
