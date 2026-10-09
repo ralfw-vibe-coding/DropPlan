@@ -10,7 +10,7 @@ import { setupDrag } from './drag.js';
 import { renderTaskFilters, renderTaskList, esc } from './ui-tasks.js';
 import { renderWeek, renderMonth, timeAt, range, percentOf, minutesPerPx } from './ui-calendar.js';
 import {
-  today, addDays, addMonths, startOfWeek, isoWeek, monthTitle, weekdayShort, fmtDate, fmtDateLong,
+  today, addDays, addMonths, startOfWeek, isoWeek, daysBetween, monthTitle, weekdayShort, fmtDate, fmtDateLong,
   fmtDuration, fmtHours, parseDuration, toHHMM, fromHHMM, weekdayIndex, WEEKDAYS,
 } from './dates.js';
 
@@ -29,13 +29,18 @@ const prefs = (() => {
 })();
 const ui = {
   view: prefs.view || 'week',
-  anchor: today(),
+  anchor: startOfWeek(today()), // Woche: erster sichtbarer Tag · Monat: ein Tag im Monat
   selected: null, // in der Monatsansicht angeklickter Tag, in der Woche umrandet
+  collapsed: !!prefs.collapsed, // Aufgabenliste eingeklappt
+  listWidth: prefs.listWidth || null, // Breite der Liste in px (null = ein Drittel)
   filter: { tags: new Set(prefs.tags || []), state: prefs.state || null, followUps: false, archive: false },
 };
 function savePrefs() {
   try {
-    localStorage.setItem('dropplan.prefs', JSON.stringify({ view: ui.view, tags: [...ui.filter.tags], state: ui.filter.state }));
+    localStorage.setItem(
+      'dropplan.prefs',
+      JSON.stringify({ view: ui.view, tags: [...ui.filter.tags], state: ui.filter.state, collapsed: ui.collapsed, listWidth: ui.listWidth }),
+    );
   } catch {
     // egal
   }
@@ -88,6 +93,8 @@ async function main() {
   renderSync();
   setupDrag({ accepts, describe, hover, onDrop });
   setupPan();
+  setupListLayout();
+  watchCalendarWidth();
   wireEvents();
   store.start();
 }
@@ -111,39 +118,79 @@ function render() {
   $('#filters').innerHTML = renderTaskFilters(model, ui.filter);
   const list = $('#task-list');
   list.innerHTML = renderTaskList(model, ui.filter);
+  $('.strip-label').textContent = `Aufgaben (${list.querySelectorAll('.task').length})`;
   // Umsortieren nur in der normalen Liste, nicht im Archiv
   if (ui.filter.archive) delete list.dataset.drop;
   else list.dataset.drop = 'list';
   renderCalendar();
 }
 
-function renderCalendar() {
+// Wochenansicht: fortlaufender Streifen von Tagen rund um ui.anchor (= erster sichtbarer Tag)
+const WEEKS_AROUND = 6;
+const STRIP_DAYS = 7 * (2 * WEEKS_AROUND + 1);
+let colw = 120; // Breite einer Tagesspalte in px
+let scrollTimer = null;
+
+function computeColWidth() {
+  return Math.max(110, ($('#cal-body').clientWidth - 52) / 7);
+}
+
+const firstVisibleDate = (sc) => addDays(sc.dataset.start, Math.round(sc.scrollLeft / colw));
+
+function updateWeekTitle(sc) {
+  const d = firstVisibleDate(sc);
+  const e = addDays(d, 6);
+  const kw = isoWeek(d) === isoWeek(e) ? `KW ${isoWeek(d)}` : `KW ${isoWeek(d)}/${isoWeek(e)}`;
+  $('#cal-title').textContent = `${kw} · ${fmtDate(d)}–${fmtDate(e)}${e.slice(0, 4)}`;
+}
+
+function onWeekScroll(e) {
+  const sc = e.currentTarget;
+  updateWeekTitle(sc);
+  clearTimeout(scrollTimer);
+  scrollTimer = setTimeout(() => {
+    if (!sc.isConnected) return;
+    ui.anchor = firstVisibleDate(sc);
+    // nahe am Ende des Streifens: neu um den sichtbaren Tag herum aufbauen
+    const idx = daysBetween(sc.dataset.start, ui.anchor);
+    if (idx < 14 || idx > STRIP_DAYS - 21) renderCalendar();
+  }, 200);
+}
+
+// jump = true: zu ui.anchor springen; sonst sichtbare Position beibehalten
+function renderCalendar({ jump = false } = {}) {
   document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === ui.view));
   const body = $('#cal-body');
   if (ui.view === 'month') {
     $('#cal-title').textContent = monthTitle(ui.anchor);
     body.innerHTML = renderMonth(model, ui.anchor, ui.selected);
-    body.dataset.week = '';
     body.classList.add('pannable');
     return;
   }
-  const start = startOfWeek(ui.anchor);
-  const end = addDays(start, 6);
-  $('#cal-title').textContent = `KW ${isoWeek(start)} · ${fmtDate(start)}–${fmtDate(end)}${end.slice(0, 4)}`;
-  // Horizontale Scrollposition (schmale Bildschirme) beim Neuzeichnen derselben Woche behalten
+  body.classList.remove('pannable');
   const old = body.querySelector('.week-scroll');
-  const keepLeft = old && body.dataset.week === start ? old.scrollLeft : null;
-  body.innerHTML = renderWeek(model, ui.anchor, ui.selected);
-  body.dataset.week = start;
+  // Position in Tagen merken (nicht in Pixeln – die Spaltenbreite kann sich geändert haben)
+  const keep = !jump && old ? { start: old.dataset.start, days: old.scrollLeft / colw } : null;
+  const start = addDays(startOfWeek(ui.anchor), -7 * WEEKS_AROUND);
+  colw = computeColWidth();
+  body.innerHTML = renderWeek(model, start, STRIP_DAYS, ui.selected);
   const sc = body.querySelector('.week-scroll');
-  const overflowX = sc.scrollWidth > sc.clientWidth;
-  if (keepLeft !== null) sc.scrollLeft = keepLeft;
-  else if (overflowX) {
-    const col = sc.querySelector('.wday-head.selected') || sc.querySelector('.wday-head.today');
-    if (col) sc.scrollLeft = col.offsetLeft - 52;
-  }
-  // Blättern per Wischen nur, wenn die Woche nicht ohnehin seitlich scrollt
-  body.classList.toggle('pannable', !overflowX);
+  sc.style.setProperty('--colw', `${colw}px`);
+  sc.scrollLeft = (keep ? keep.days + daysBetween(start, keep.start) : daysBetween(start, ui.anchor)) * colw;
+  updateWeekTitle(sc);
+  sc.addEventListener('scroll', onWeekScroll, { passive: true });
+}
+
+// Spaltenbreite anpassen, wenn sich die Kalenderbreite ändert (Fenster, Liste ein-/ausklappen, Trenner)
+function watchCalendarWidth() {
+  new ResizeObserver(() => {
+    const sc = $('#cal-body .week-scroll');
+    if (!sc) return;
+    const first = Math.round(sc.scrollLeft / colw);
+    colw = computeColWidth();
+    sc.style.setProperty('--colw', `${colw}px`);
+    sc.scrollLeft = first * colw;
+  }).observe($('#cal-body'));
 }
 
 function renderSync() {
@@ -169,6 +216,64 @@ function renderSync() {
       dbx.login();
     };
   }
+}
+
+// Zeiger an ein Element binden, damit Ziehen auch außerhalb weiterläuft
+function capture(el, pointerId) {
+  try {
+    el.setPointerCapture(pointerId);
+  } catch {
+    // Zeiger schon wieder weg – dann eben ohne
+  }
+}
+
+// ---------- Liste einklappen & Breite ----------
+
+function applyListLayout() {
+  const app = $('#app');
+  app.classList.toggle('collapsed', ui.collapsed);
+  if (ui.listWidth) {
+    app.style.setProperty('--list-w', `${ui.listWidth}px`);
+    app.style.setProperty('--cal-w', '1fr');
+  }
+}
+
+function setupListLayout() {
+  applyListLayout();
+  $('#btn-collapse').addEventListener('click', () => {
+    ui.collapsed = true;
+    applyListLayout();
+    savePrefs();
+  });
+  $('#btn-expand').addEventListener('click', () => {
+    ui.collapsed = false;
+    applyListLayout();
+    savePrefs();
+  });
+
+  // Trenner ziehen = Breite der Liste ändern
+  const splitter = $('#splitter');
+  splitter.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    capture(splitter, e.pointerId);
+    splitter.classList.add('active');
+    document.body.classList.add('resizing');
+    const app = $('#app').getBoundingClientRect();
+    const move = (ev) => {
+      ui.listWidth = Math.round(Math.max(220, Math.min(ev.clientX - app.left - 12, app.width - 24 - 12 - 360)));
+      applyListLayout();
+    };
+    const up = () => {
+      removeEventListener('pointermove', move);
+      removeEventListener('pointerup', up);
+      splitter.classList.remove('active');
+      document.body.classList.remove('resizing');
+      savePrefs();
+    };
+    addEventListener('pointermove', move);
+    addEventListener('pointerup', up);
+  });
 }
 
 // ---------- Ziehen & Ablegen ----------
@@ -245,7 +350,7 @@ function onDrop(payload, target, point) {
   else model.updateBooking(payload.id, { date, start });
 }
 
-// Beim Ziehen kurz am linken/rechten Kalenderrand verweilen = blättern
+// Monat: beim Ziehen kurz am linken/rechten Kalenderrand verweilen = blättern
 const flip = { dir: 0, timer: null };
 
 function edgeFlip(payload, point) {
@@ -253,7 +358,8 @@ function edgeFlip(payload, point) {
   const r = body.getBoundingClientRect();
   const sc = body.querySelector('.week-scroll');
   let dir = 0;
-  if (payload && point.y > r.top && point.y < r.bottom) {
+  // nur im Monat; die Woche scrollt beim Ziehen am Rand von selbst weiter
+  if (payload && ui.view === 'month' && point.y > r.top && point.y < r.bottom) {
     if (point.x >= r.left && point.x < r.left + 28) dir = -1;
     else if (point.x <= r.right && point.x > r.right - 28) dir = 1;
   }
@@ -277,16 +383,19 @@ function slide(dir) {
   );
 }
 
-// Kalender mit Maus/Finger seitlich ziehen oder auf dem Trackpad wischen = blättern
+// Woche: mit der Maus seitlich ziehen = fließend scrollen (Touch und Trackpad scrollen ohnehin nativ).
+// Monat: ziehen oder wischen = blättern.
 function setupPan() {
   const body = $('#cal-body');
   let pan = null;
   const swallow = (e) => e.stopPropagation();
 
   body.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0 || !body.classList.contains('pannable')) return;
-    if (e.target.closest('[data-drag], [data-nodrag], button, input, a')) return;
-    pan = { x: e.clientX, y: e.clientY, id: e.pointerId, active: false };
+    if (e.button !== 0 || e.target.closest('[data-drag], [data-nodrag], button, input, a')) return;
+    const sc = body.querySelector('.week-scroll');
+    if (sc && e.pointerType !== 'mouse') return;
+    if (!sc && !body.classList.contains('pannable')) return;
+    pan = { x: e.clientX, y: e.clientY, id: e.pointerId, active: false, sc, left: sc?.scrollLeft };
   });
   body.addEventListener('pointermove', (e) => {
     if (!pan || e.pointerId !== pan.id) return;
@@ -299,10 +408,11 @@ function setupPan() {
         return;
       }
       pan.active = true;
-      body.setPointerCapture(e.pointerId);
+      capture(body, e.pointerId);
       body.classList.add('panning');
     }
-    body.firstElementChild.style.transform = `translateX(${dx}px)`;
+    if (pan.sc) pan.sc.scrollLeft = pan.left - dx;
+    else body.firstElementChild.style.transform = `translateX(${dx}px)`;
   });
   const finish = (e) => {
     if (!pan || e.pointerId !== pan.id) return;
@@ -312,19 +422,21 @@ function setupPan() {
     body.classList.remove('panning');
     addEventListener('click', swallow, { capture: true });
     setTimeout(() => removeEventListener('click', swallow, { capture: true }), 0);
+    if (p.sc) {
+      // an der nächsten Tagesgrenze einrasten
+      p.sc.scrollTo({ left: Math.round(p.sc.scrollLeft / colw) * colw, behavior: 'smooth' });
+      return;
+    }
     const dx = e.clientX - p.x;
     const content = body.firstElementChild;
-    if (e.type === 'pointerup' && Math.abs(dx) > Math.min(120, body.clientWidth * 0.2)) {
-      content.style.transform = '';
-      slide(dx < 0 ? 1 : -1);
-    } else {
-      content.animate([{ transform: `translateX(${dx}px)` }, { transform: 'none' }], { duration: 180, easing: 'ease-out' });
-      content.style.transform = '';
-    }
+    content.style.transform = '';
+    if (e.type === 'pointerup' && Math.abs(dx) > Math.min(120, body.clientWidth * 0.2)) slide(dx < 0 ? 1 : -1);
+    else content.animate([{ transform: `translateX(${dx}px)` }, { transform: 'none' }], { duration: 180, easing: 'ease-out' });
   };
   body.addEventListener('pointerup', finish);
   body.addEventListener('pointercancel', finish);
 
+  // Monat: auf dem Trackpad seitlich wischen = blättern
   let acc = 0;
   let lockUntil = 0;
   body.addEventListener(
@@ -557,11 +669,15 @@ function saveSettings() {
 
 function navigate(dir) {
   if (dir === 0) {
-    ui.anchor = today();
+    ui.anchor = ui.view === 'week' ? startOfWeek(today()) : today();
     ui.selected = null;
+    return renderCalendar({ jump: true });
   }
-  else if (ui.view === 'week') ui.anchor = addDays(ui.anchor, dir * 7);
-  else ui.anchor = addMonths(ui.anchor, dir);
+  if (ui.view === 'week') {
+    $('#cal-body .week-scroll').scrollBy({ left: dir * 7 * colw, behavior: 'smooth' });
+    return;
+  }
+  ui.anchor = addMonths(ui.anchor, dir);
   renderCalendar();
 }
 
@@ -577,9 +693,14 @@ function wireEvents() {
 
   document.querySelectorAll('[data-view]').forEach((b) =>
     b.addEventListener('click', () => {
+      if (ui.view === b.dataset.view) return;
       ui.view = b.dataset.view;
+      if (ui.view === 'week') {
+        // aus dem Monat: Woche von heute, falls der Monat heute enthält, sonst erste Woche des Monats
+        ui.anchor = startOfWeek(ui.anchor.slice(0, 7) === today().slice(0, 7) ? today() : ui.anchor);
+      }
       savePrefs();
-      renderCalendar();
+      renderCalendar({ jump: true });
     }),
   );
   document.querySelectorAll('[data-nav]').forEach((b) => b.addEventListener('click', () => navigate(Number(b.dataset.nav))));
@@ -619,10 +740,10 @@ function wireEvents() {
     if (goto) {
       if ($('#task-dialog').open) $('#task-dialog').close();
       ui.view = 'week';
-      ui.anchor = goto.dataset.gotoWeek;
+      ui.anchor = startOfWeek(goto.dataset.gotoWeek);
       ui.selected = goto.dataset.gotoWeek;
       savePrefs();
-      renderCalendar();
+      renderCalendar({ jump: true });
     }
   });
 

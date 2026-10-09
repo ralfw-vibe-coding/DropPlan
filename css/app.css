@@ -121,10 +121,36 @@ code { background: var(--offhours); padding: 1px 4px; border-radius: 4px; }
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) 2fr;
-  gap: 12px;
+  /* Liste | Trenner | Kalender; --list-w setzt der Trenner, sonst ein Drittel */
+  grid-template-columns: var(--list-w, minmax(280px, 1fr)) 12px var(--cal-w, 2fr);
   padding: 12px;
 }
+.splitter { cursor: col-resize; position: relative; touch-action: none; }
+.splitter::after { content: ""; position: absolute; top: 50%; left: 4px; width: 4px; height: 36px; margin-top: -18px; border-radius: 2px; background: var(--line-strong); }
+.splitter:hover::after, .splitter.active::after { background: var(--accent); }
+body.resizing, body.resizing * { cursor: col-resize !important; user-select: none; }
+
+/* Liste eingeklappt: nur eine schmale Spalte bleibt */
+.strip { display: none; }
+.app.collapsed { grid-template-columns: 40px 12px 1fr; }
+.app.collapsed .splitter { pointer-events: none; }
+.app.collapsed .splitter::after { display: none; }
+.app.collapsed .tasks > :not(.strip) { display: none; }
+.app.collapsed .strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  border: none;
+  border-radius: 0;
+  padding: 10px 0;
+  background: none;
+}
+.strip:hover { background: var(--bg); }
+.strip .chevron { font-size: 18px; line-height: 1; }
+.strip-label { writing-mode: vertical-rl; color: var(--muted); font-size: 13px; letter-spacing: 0.5px; }
+.chevron-btn { padding: 0 9px; font-size: 18px; line-height: 1; }
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -138,6 +164,12 @@ code { background: var(--offhours); padding: 1px 4px; border-radius: 4px; }
 
 @media (max-width: 860px) {
   .app { grid-template-columns: 1fr; grid-template-rows: minmax(180px, 38vh) 1fr; padding: 8px; gap: 8px; }
+  .splitter { display: none; }
+  .app.collapsed { grid-template-columns: 1fr; grid-template-rows: 40px 1fr; }
+  .app.collapsed .strip { flex-direction: row; justify-content: center; padding: 0; }
+  .app.collapsed .strip .chevron { transform: rotate(90deg); }
+  .app.collapsed .strip-label { writing-mode: horizontal-tb; }
+  .chevron-btn { transform: rotate(90deg); }
   .topbar { padding: 8px 12px; }
 }
 
@@ -254,11 +286,24 @@ code { background: var(--offhours); padding: 1px 4px; border-radius: 4px; }
 }
 
 /* Woche: zeigt nur den eingestellten Zeitraum und füllt die verfügbare Höhe */
-.week-scroll { flex: 1; overflow: auto; position: relative; display: flex; flex-direction: column; }
+.week-scroll {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  scroll-snap-type: x mandatory;
+  scroll-padding-left: 52px; /* Stundenspalte steht davor */
+}
+.wday-head { scroll-snap-align: start; }
+/* beim Ziehen frei scrollen, eingerastet wird danach */
+.panning .week-scroll, body.dragging .week-scroll { scroll-snap-type: none; }
+.wday-head.monday, .wday-grid.monday { border-left: 2px solid var(--line-strong); }
+.kw { margin-left: auto; font-size: 11px; color: var(--muted); }
 .week {
   flex: 1;
   display: grid;
-  grid-template-columns: 52px repeat(7, minmax(112px, 1fr));
+  grid-template-columns: 52px repeat(var(--days), var(--colw, 120px));
   grid-template-rows: auto minmax(calc(var(--hours) * 30px), 1fr);
   min-width: min-content;
 }

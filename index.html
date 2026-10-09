@@ -27,13 +27,19 @@
 
   <main class="app" id="app" hidden>
     <section class="panel tasks">
+      <button class="strip" id="btn-expand" title="Liste ausklappen">
+        <span class="chevron">›</span><span class="strip-label">Aufgaben</span>
+      </button>
       <form class="new-task" id="new-task" autocomplete="off">
+        <button type="button" class="icon-btn chevron-btn" id="btn-collapse" title="Liste einklappen">‹</button>
         <input name="title" placeholder="Neue Aufgabe …" aria-label="Neue Aufgabe">
         <button class="primary" type="submit">+</button>
       </form>
       <div class="filters" id="filters"></div>
       <ul class="task-list" id="task-list"></ul>
     </section>
+
+    <div class="splitter" id="splitter" title="Breite der Liste ziehen"></div>
 
     <section class="panel calendar">
       <div class="cal-toolbar">

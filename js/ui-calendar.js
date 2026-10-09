@@ -2,7 +2,7 @@
 
 import {
   today, addDays, startOfWeek, startOfMonth, weekdayShort, fmtDate, fmtHours, fmtDuration,
-  toHHMM, fromHHMM, parse, WEEKDAYS,
+  toHHMM, fromHHMM, parse, isoWeek, WEEKDAYS,
 } from './dates.js';
 import { esc } from './ui-tasks.js';
 
@@ -72,13 +72,13 @@ export function range(settings) {
 
 const pct = (min, r) => ((min - r.from) / (r.to - r.from)) * 100;
 
-export function renderWeek(model, anchor, selected) {
-  const start = startOfWeek(anchor);
+// Fortlaufender Tagesstreifen: count Tage ab start, seitlich scrollbar
+export function renderWeek(model, start, count, selected) {
   const t = today();
   const r = range(model.settings());
   const hours = (r.to - r.from) / 60;
   const byDate = groupByDate(model.bookings());
-  const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+  const days = Array.from({ length: count }, (_, i) => addDays(start, i));
   const titleOf = (b) => model.task(b.taskId)?.title ?? '(gelöschte Aufgabe)';
   const dayClass = (date) => `${date === t ? 'today' : ''} ${date === selected ? 'selected' : ''} ${model.capacity(date) === 0 ? 'off' : ''}`;
 
@@ -88,8 +88,8 @@ export function renderWeek(model, anchor, selected) {
       const load = model.load(date, list);
       const reserved = list.filter((b) => !b.start).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
       return `
-        <div class="wday-head ${dayClass(date)}" data-drop="day" data-date="${date}">
-          <div class="wday-title"><b>${weekdayShort(date)}</b> ${fmtDate(date)}${date === t ? ' <span class="today-tag">heute</span>' : ''}</div>
+        <div class="wday-head ${dayClass(date)} ${weekdayShort(date) === 'Mo' ? 'monday' : ''}" data-drop="day" data-date="${date}">
+          <div class="wday-title"><b>${weekdayShort(date)}</b> ${fmtDate(date)}${date === t ? ' <span class="today-tag">heute</span>' : ''}${weekdayShort(date) === 'Mo' ? `<span class="kw">KW ${isoWeek(date)}</span>` : ''}</div>
           ${bar(load)}
           <div class="wday-load">
             <span>${fmtHours(load.minutes)} / <button class="cap" data-cap="${date}" title="Kapazität für diesen Tag ändern">${fmtHours(load.capacity)} h</button>
@@ -131,7 +131,7 @@ export function renderWeek(model, anchor, selected) {
         })
         .join('');
       return `
-        <div class="wday-grid ${dayClass(date)}" data-drop="time" data-date="${date}">
+        <div class="wday-grid ${dayClass(date)} ${weekdayShort(date) === 'Mo' ? 'monday' : ''}" data-drop="time" data-date="${date}">
           ${date === t && nowMin >= r.from && nowMin <= r.to ? `<div class="now" style="top:${pct(nowMin, r)}%"></div>` : ''}
           ${blocks}
         </div>`;
@@ -139,8 +139,8 @@ export function renderWeek(model, anchor, selected) {
     .join('');
 
   return `
-    <div class="week-scroll">
-      <div class="week" style="--hours:${hours}">
+    <div class="week-scroll" data-start="${start}">
+      <div class="week" style="--hours:${hours};--days:${count}">
         <div class="corner"></div>
         ${heads}
         <div class="hours">${labels}</div>
