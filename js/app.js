@@ -31,6 +31,8 @@ const ui = {
   view: prefs.view || 'week',
   anchor: startOfWeek(today()), // Woche: erster sichtbarer Tag · Monat: ein Tag im Monat
   selected: null, // in der Monatsansicht angeklickter Tag, in der Woche umrandet
+  busy: false, // läuft gerade eine Ziehgeste, die nicht unterbrochen werden darf?
+  renderPending: false,
   collapsed: !!prefs.collapsed, // Aufgabenliste eingeklappt
   listWidth: prefs.listWidth || null, // Breite der Liste in px (null = ein Drittel)
   filter: { tags: new Set(prefs.tags || []), state: prefs.state || null, followUps: false, archive: false },
@@ -86,7 +88,8 @@ async function main() {
     // gebündelt neu zeichnen (setTimeout statt requestAnimationFrame, das in Hintergrund-Tabs pausiert)
     setTimeout(() => {
       queued = false;
-      render();
+      if (ui.busy) ui.renderPending = true; // z. B. während die Dauer gezogen wird
+      else render();
     }, 0);
   });
   render();
@@ -457,12 +460,14 @@ function setupPan() {
   );
 }
 
-// Dauer eines Termins im Raster am unteren Rand ziehen
+// Dauer eines Termins im Raster am unteren Rand ziehen:
+// der Block folgt dem Zeiger fließend, die Uhrzeit zeigt das auf 15 min gerundete Ende, beim Loslassen rastet er ein
 function startResize(e, id) {
   e.preventDefault();
   e.stopPropagation();
   const b = model.booking(id);
-  const block = e.target.closest('.block');
+  const handle = e.target.closest('[data-resize]');
+  const block = handle.closest('.block');
   const r = range(model.settings());
   const mpp = minutesPerPx(block.closest('.wday-grid'), r);
   const startY = e.clientY;
@@ -470,19 +475,38 @@ function startResize(e, id) {
   const s0 = fromHHMM(b.start);
   const maxMin = 24 * 60 - s0;
   const top = Math.min(Math.max(percentOf(s0, r), 0), 97);
+  const heightFor = (min) => `${Math.max(Math.min(percentOf(s0 + min, r), 100) - top, 3)}%`;
   let minutes = startMin;
+  ui.busy = true; // währenddessen nicht neu zeichnen, sonst reißt der Block ab
+  capture(handle, e.pointerId);
+  block.classList.add('resizing');
+  document.body.classList.add('resizing-block');
+
   const move = (ev) => {
-    minutes = Math.max(15, Math.min(maxMin, startMin + Math.round(((ev.clientY - startY) * mpp) / 15) * 15));
-    block.style.height = `${Math.max(Math.min(percentOf(s0 + minutes, r), 100) - top, 3)}%`;
+    const raw = Math.max(15, Math.min(maxMin, startMin + (ev.clientY - startY) * mpp));
+    minutes = Math.max(15, Math.min(maxMin, Math.round(raw / 15) * 15));
+    block.style.height = heightFor(raw);
     block.querySelector('.block-time').textContent = `${b.start}–${toHHMM(s0 + minutes)} · ${fmtDuration(minutes)}`;
   };
   const up = () => {
     removeEventListener('pointermove', move);
     removeEventListener('pointerup', up);
+    removeEventListener('pointercancel', up);
+    block.style.height = heightFor(minutes);
+    block.classList.remove('resizing');
+    document.body.classList.remove('resizing-block');
+    // den Klick nach dem Loslassen verschlucken, sonst öffnet sich das Termin-Fenster
+    const swallow = (ev) => ev.stopPropagation();
+    addEventListener('click', swallow, { capture: true });
+    setTimeout(() => removeEventListener('click', swallow, { capture: true }), 0);
+    ui.busy = false;
     if (minutes !== startMin) model.updateBooking(id, { minutes });
+    else if (ui.renderPending) render();
+    ui.renderPending = false;
   };
   addEventListener('pointermove', move);
   addEventListener('pointerup', up);
+  addEventListener('pointercancel', up);
 }
 
 // ---------- Popover (Termin, Kapazität) ----------

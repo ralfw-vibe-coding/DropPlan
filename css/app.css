@@ -393,8 +393,11 @@ body.resizing, body.resizing * { cursor: col-resize !important; user-select: non
 .block.outside { border-style: dashed; }
 .block-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .block-time { font-size: 11px; color: var(--muted); white-space: nowrap; }
-.resize { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; touch-action: none; }
-.resize::after { content: ""; position: absolute; left: 50%; bottom: 2px; width: 18px; margin-left: -9px; height: 2px; border-radius: 1px; background: var(--block-border); }
+.resize { position: absolute; left: 0; right: 0; bottom: 0; height: 10px; cursor: ns-resize; touch-action: none; }
+.resize::after { content: ""; position: absolute; left: 50%; bottom: 3px; width: 22px; margin-left: -11px; height: 3px; border-radius: 2px; background: var(--block-border); }
+.block:hover .resize::after, .block.resizing .resize::after { background: var(--accent); }
+.block.resizing { z-index: 4; box-shadow: var(--shadow); }
+body.resizing-block, body.resizing-block * { cursor: ns-resize !important; user-select: none; }
 
 /* Heute: farbig hinterlegt · angeklickter Tag: umrandet */
 .today-tag { font-size: 10.5px; font-weight: 600; color: #fff; background: var(--accent); border-radius: 999px; padding: 0 6px; }
