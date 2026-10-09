@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DropPlan</title>
+  <link rel="stylesheet" href="css/app.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='3' y='17' width='6' height='12' rx='1.5' fill='%2316a34a'/><rect x='13' y='10' width='6' height='19' rx='1.5' fill='%23eab308'/><rect x='23' y='4' width='6' height='25' rx='1.5' fill='%23dc2626'/></svg>">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">DropPlan</div>
+    <div class="mode" id="mode"></div>
+    <div class="sync" id="sync"></div>
+    <button class="icon-btn" id="btn-settings" title="Einstellungen" hidden>⚙︎</button>
+  </header>
+
+  <!-- Verbinden mit Dropbox -->
+  <section class="connect" id="connect" hidden>
+    <div class="connect-card">
+      <h1>DropPlan</h1>
+      <p>Kapazitätsplanung für Aufgaben. Deine Daten liegen als Dateien in deiner eigenen Dropbox, im Ordner <code>Apps/…</code>.</p>
+      <button class="primary" id="btn-connect">Mit Dropbox verbinden</button>
+      <p class="hint" id="connect-hint"></p>
+    </div>
+  </section>
+
+  <main class="app" id="app" hidden>
+    <section class="panel tasks">
+      <form class="new-task" id="new-task" autocomplete="off">
+        <input name="title" placeholder="Neue Aufgabe …" aria-label="Neue Aufgabe">
+        <button class="primary" type="submit">+</button>
+      </form>
+      <div class="filters" id="filters"></div>
+      <ul class="task-list" id="task-list"></ul>
+    </section>
+
+    <section class="panel calendar">
+      <div class="cal-toolbar">
+        <div class="seg" role="group">
+          <button data-view="week">Woche</button>
+          <button data-view="month">Monat</button>
+        </div>
+        <button class="icon-btn" data-nav="-1" title="Zurück">‹</button>
+        <button data-nav="0">Heute</button>
+        <button class="icon-btn" data-nav="1" title="Weiter">›</button>
+        <h2 id="cal-title"></h2>
+      </div>
+      <div class="cal-body" id="cal-body"></div>
+    </section>
+  </main>
+
+  <!-- Aufgabe bearbeiten -->
+  <dialog id="task-dialog">
+    <form method="dialog" id="task-form" autocomplete="off">
+      <input name="title" class="title-input" placeholder="Titel" required>
+      <div class="status-line" id="task-status"></div>
+      <label>Notiz<textarea name="notes" rows="5"></textarea></label>
+      <label>Tags <small>mit Komma trennen, z. B. backlog, ready</small><input name="tags" list="tag-list"></label>
+      <datalist id="tag-list"></datalist>
+      <div class="row">
+        <label>Deadline<input type="date" name="deadline"></label>
+        <label>Wiedervorlage<input type="date" name="followUp"></label>
+      </div>
+      <div class="task-bookings" id="task-bookings"></div>
+      <div class="dialog-actions">
+        <button type="button" class="danger" id="btn-delete-task">Löschen</button>
+        <button type="button" id="btn-archive-task">Archivieren</button>
+        <span class="filter-spacer"></span>
+        <button value="close" class="primary">Fertig</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Einstellungen -->
+  <dialog id="settings-dialog">
+    <form method="dialog" id="settings-form">
+      <h3>Einstellungen</h3>
+      <label>Standard-Dauer beim Einplanen (Minuten)<input type="number" name="defaultMinutes" min="5" step="5"></label>
+      <fieldset>
+        <legend>Kapazität pro Wochentag (Stunden)</legend>
+        <div class="weekday-caps" id="weekday-caps"></div>
+      </fieldset>
+      <div class="row">
+        <label>Kernzeit von (Uhr)<input type="number" name="coreStart" min="0" max="23"></label>
+        <label>bis (Uhr)<input type="number" name="coreEnd" min="1" max="24"></label>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="danger" id="btn-disconnect">Dropbox trennen</button>
+        <span class="filter-spacer"></span>
+        <button value="cancel" formnovalidate>Abbrechen</button>
+        <button value="save" class="primary">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="popover" id="popover" hidden></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
