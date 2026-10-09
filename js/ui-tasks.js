@@ -21,6 +21,8 @@ export function visibleTasks(model, filter) {
   return model
     .tasks()
     .filter((task) => {
+      if (filter.state === 'active' && !task.activatedAt) return false;
+      if (filter.state === 'passive' && task.activatedAt) return false;
       if (filter.archive) return !!task.archivedAt;
       if (task.archivedAt) return false;
       if (!filter.followUps && task.followUp && task.followUp > t) return false;
@@ -37,6 +39,8 @@ export function renderTaskFilters(model, filter) {
   return `
     ${tags.map((tag) => `<button class="chip tag ${filter.tags.has(tag) ? 'on' : ''}" data-filter-tag="${esc(tag)}">#${esc(tag)}</button>`).join('')}
     <span class="filter-spacer"></span>
+    <button class="chip toggle ${filter.state === 'active' ? 'on' : ''}" data-filter-state="active" title="Nur Aufgaben, die schon im Kalender waren"><span class="state-dot on"></span>Aktiv</button>
+    <button class="chip toggle ${filter.state === 'passive' ? 'on' : ''}" data-filter-state="passive" title="Nur Aufgaben, die noch nie eingeplant waren"><span class="state-dot"></span>Passiv</button>
     <button class="chip toggle ${filter.followUps ? 'on' : ''}" data-filter="followUps" title="Aufgaben mit späterer Wiedervorlage einblenden">Wiedervorlagen${waiting ? ` (${waiting})` : ''}</button>
     <button class="chip toggle ${filter.archive ? 'on' : ''}" data-filter="archive" title="Nur archivierte Aufgaben zeigen">Archiv${archived ? ` (${archived})` : ''}</button>`;
 }
@@ -44,7 +48,8 @@ export function renderTaskFilters(model, filter) {
 export function renderTaskList(model, filter) {
   const tasks = visibleTasks(model, filter);
   if (!tasks.length) {
-    return `<li class="empty">${filter.archive ? 'Keine archivierten Aufgaben.' : 'Keine Aufgaben. Oben eine neue anlegen.'}</li>`;
+    const text = filter.archive ? 'Keine archivierten Aufgaben.' : model.tasks().length ? 'Keine passenden Aufgaben.' : 'Keine Aufgaben. Oben eine neue anlegen.';
+    return `<li class="empty">${text}</li>`;
   }
   const planned = new Map();
   for (const b of model.bookings()) planned.set(b.taskId, (planned.get(b.taskId) || 0) + b.minutes);

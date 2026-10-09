@@ -151,6 +151,9 @@ code { background: var(--offhours); padding: 1px 4px; border-radius: 4px; }
 .filter-spacer { flex: 1; }
 .chip { font-size: 12px; padding: 2px 9px; border-radius: 999px; }
 .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip .state-dot { width: 8px; height: 8px; margin: 0 5px 0 0; vertical-align: 0; }
+.chip.on .state-dot { border-color: #fff; }
+.chip.on .state-dot.on { background: #fff; }
 
 .task-list { list-style: none; margin: 0; padding: 4px 0; overflow-y: auto; flex: 1; position: relative; }
 .task-list .empty { color: var(--muted); padding: 16px; text-align: center; }

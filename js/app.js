@@ -31,11 +31,11 @@ const ui = {
   view: prefs.view || 'week',
   anchor: today(),
   selected: null, // in der Monatsansicht angeklickter Tag, in der Woche umrandet
-  filter: { tags: new Set(prefs.tags || []), followUps: false, archive: false },
+  filter: { tags: new Set(prefs.tags || []), state: prefs.state || null, followUps: false, archive: false },
 };
 function savePrefs() {
   try {
-    localStorage.setItem('dropplan.prefs', JSON.stringify({ view: ui.view, tags: [...ui.filter.tags] }));
+    localStorage.setItem('dropplan.prefs', JSON.stringify({ view: ui.view, tags: [...ui.filter.tags], state: ui.filter.state }));
   } catch {
     // egal
   }
@@ -587,7 +587,13 @@ function wireEvents() {
   $('#filters').addEventListener('click', (e) => {
     const tagBtn = e.target.closest('[data-filter-tag]');
     const toggle = e.target.closest('[data-filter]');
-    if (tagBtn) {
+    const stateBtn = e.target.closest('[data-filter-state]');
+    if (stateBtn) {
+      // aktiv / passiv / alle: zweiter Klick schaltet wieder aus
+      const state = stateBtn.dataset.filterState;
+      ui.filter.state = ui.filter.state === state ? null : state;
+      savePrefs();
+    } else if (tagBtn) {
       const tag = tagBtn.dataset.filterTag;
       ui.filter.tags.has(tag) ? ui.filter.tags.delete(tag) : ui.filter.tags.add(tag);
       savePrefs();
