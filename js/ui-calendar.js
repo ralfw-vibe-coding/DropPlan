@@ -31,13 +31,9 @@ function percent(load) {
   return load.capacity > 0 ? `${Math.round(load.ratio * 100)} %` : 'Überstunden';
 }
 
-// Freie Tage: Wochenende immer grau; Wochenende mit Kapazität zusätzlich schraffiert;
-// Werktag ohne Kapazität (Urlaub, Feiertag) ebenfalls grau
+// Wochenende: grau · Tag ohne Kapazität (Wochenende, Urlaub, Feiertag): schraffiert
 function offClasses(date, capacity) {
-  const weekend = weekdayIndex(date) >= 5;
-  return [weekend && 'weekend', weekend && capacity > 0 && 'weekend-work', !weekend && capacity === 0 && 'off']
-    .filter(Boolean)
-    .join(' ');
+  return [weekdayIndex(date) >= 5 && 'weekend', capacity === 0 && 'nocap'].filter(Boolean).join(' ');
 }
 
 // ---------- Monat ----------
