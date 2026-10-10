@@ -295,8 +295,9 @@ body.resizing, body.resizing * { cursor: col-resize !important; user-select: non
 .mday:hover { border-color: var(--line-strong); }
 .mday.other { opacity: 0.45; }
 .mday.weekend { background: var(--offhours); }
-.mday.today { background: var(--accent-soft); border-color: var(--block-border); }
-.mday.selected { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+/* Heute: dünner blauer Rahmen + blaue Fläche · ausgewählter Tag: kräftiger dunkler Rahmen */
+.mday.today { background: var(--accent-soft); border-color: var(--accent); }
+.mday.selected { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
 .mday-top { display: flex; justify-content: space-between; gap: 4px; align-items: baseline; }
 .mday-num { font-weight: 600; }
 .mday.today .mday-num { color: var(--accent); }
@@ -430,9 +431,10 @@ body.resizing-block, body.resizing-block * { cursor: ns-resize !important; user-
 .wday-head.today { background: var(--accent-soft); }
 .wday-head.today .wday-title b { color: var(--accent); }
 .wday-grid.today { background-color: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
-.wday-head.selected, .wday-grid.selected { box-shadow: inset 2px 0 0 var(--accent), inset -2px 0 0 var(--accent); }
-.wday-head.selected { box-shadow: inset 2px 0 0 var(--accent), inset -2px 0 0 var(--accent), inset 0 2px 0 var(--accent); }
-.wday-grid.selected { box-shadow: inset 2px 0 0 var(--accent), inset -2px 0 0 var(--accent), inset 0 -2px 0 var(--accent); }
+.wday-head.today { box-shadow: inset 1px 0 0 var(--accent), inset -1px 0 0 var(--accent), inset 0 1px 0 var(--accent); }
+.wday-grid.today { box-shadow: inset 1px 0 0 var(--accent), inset -1px 0 0 var(--accent), inset 0 -1px 0 var(--accent); }
+.wday-head.selected { box-shadow: inset 2px 0 0 var(--text), inset -2px 0 0 var(--text), inset 0 2px 0 var(--text); }
+.wday-grid.selected { box-shadow: inset 2px 0 0 var(--text), inset -2px 0 0 var(--text), inset 0 -2px 0 var(--text); }
 
 /* Blättern */
 .cal-body { position: relative; user-select: none; -webkit-user-select: none; }
