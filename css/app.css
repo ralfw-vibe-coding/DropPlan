@@ -595,35 +595,36 @@ dialog h3 { margin-right: 28px; }
   line-height: 16px;
   padding: 0 5px;
   border-radius: 4px;
-  border-left: 3px solid var(--cal);
-  background: color-mix(in srgb, var(--cal) 14%, var(--panel));
+  border-left: 3px solid color-mix(in srgb, var(--cal) 60%, var(--panel));
+  background: color-mix(in srgb, var(--cal) 8%, var(--panel));
+  color: color-mix(in srgb, var(--cal) 45%, var(--muted));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.ext-allday.free { background: none; border-left-style: dashed; color: var(--muted); }
+.ext-allday.free { background: var(--panel); border-left-style: dashed; color: var(--muted); }
 .ext-more { font-size: 11px; color: var(--muted); padding-left: 5px; }
 
-/* Termine im Stundenraster: im Hintergrund, hinter den eigenen Terminen */
+/* Kalendertermine im Stundenraster: blass, aber deckend und vor Raster, Wochenend-Grau und Schraffur */
 .ext-event {
   position: absolute;
-  z-index: 0;
+  z-index: 1;
   min-height: 14px;
   box-sizing: border-box;
-  border-left: 3px solid var(--cal);
-  background: color-mix(in srgb, var(--cal) 13%, transparent);
+  border-left: 3px solid color-mix(in srgb, var(--cal) 55%, var(--panel));
+  background: color-mix(in srgb, var(--cal) 8%, var(--panel));
   border-radius: 3px;
   overflow: hidden;
   padding: 1px 4px;
   font-size: 10.5px;
   line-height: 1.25;
-  color: color-mix(in srgb, var(--cal) 70%, var(--text));
+  color: color-mix(in srgb, var(--cal) 45%, var(--muted));
 }
 .ext-event span, .ext-event small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ext-event span { font-weight: 600; }
 .ext-event small { font-size: 10px; opacity: 0.8; }
 .ext-event.free {
-  background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--cal) 10%, transparent) 0 4px, transparent 4px 8px);
+  background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--cal) 7%, var(--panel)) 0 4px, var(--panel) 4px 8px);
   border-left-style: dashed;
 }
 

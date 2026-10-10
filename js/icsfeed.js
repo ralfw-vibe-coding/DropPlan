@@ -7,11 +7,12 @@ import { ICS_PROXY_URL } from './config.js';
 const pad = (n) => String(n).padStart(2, '0');
 const dateOf = (t) => `${t.year}-${pad(t.month)}-${pad(t.day)}`;
 
-export async function fetchIcs(url) {
+// from/to ("YYYY-MM-DD"): nur diesen Ausschnitt des Kalenders vom Server holen
+export async function fetchIcs(url, from, to) {
   const res = await fetch(ICS_PROXY_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ url, from, to }),
   });
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
   return res.text();

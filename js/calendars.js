@@ -130,7 +130,7 @@ export class Calendars {
             if (!googleOk) return; // alte Termine bleiben sichtbar, bis neu verbunden ist
             events = await Google.events(c.id, from, to);
           } else {
-            events = parseIcs(await fetchIcs(c.url), from, to);
+            events = parseIcs(await fetchIcs(c.url, this.window.from, this.window.to), from, to);
           }
           this.cache[c.key] = { events, fetchedAt: Date.now(), error: null };
         } catch (e) {
