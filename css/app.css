@@ -561,3 +561,88 @@ dialog .title-input { width: calc(100% - 28px); }
 dialog h3 { margin-right: 28px; }
 .popover { padding-right: 36px; }
 .popover .close-x { top: 6px; right: 6px; }
+
+/* ---------- Externe Kalender (Google, iCal) ---------- */
+
+/* Status oben rechts */
+.cal-status { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.cal-status:not([hidden]) + .sync { margin-left: 12px; }
+.cal-status a { color: var(--accent); }
+.cal-error { color: var(--orange); }
+#btn-cal-refresh { padding: 0 7px; font-size: 14px; line-height: 22px; }
+#btn-cal-refresh.spinning { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Anteil der Kalendertermine im Auslastungsbalken */
+.bar-fill { position: relative; }
+.bar-ext {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.55) 0 2px, transparent 2px 5px);
+}
+
+/* Ganztägige Termine im Tageskopf */
+.ext-allday-list { display: flex; flex-direction: column; gap: 2px; }
+.ext-allday {
+  font-size: 11px;
+  line-height: 16px;
+  padding: 0 5px;
+  border-radius: 4px;
+  border-left: 3px solid var(--cal);
+  background: color-mix(in srgb, var(--cal) 14%, var(--panel));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ext-allday.free { background: none; border-left-style: dashed; color: var(--muted); }
+.ext-more { font-size: 11px; color: var(--muted); padding-left: 5px; }
+
+/* Termine im Stundenraster: im Hintergrund, hinter den eigenen Terminen */
+.ext-event {
+  position: absolute;
+  z-index: 0;
+  min-height: 14px;
+  box-sizing: border-box;
+  border-left: 3px solid var(--cal);
+  background: color-mix(in srgb, var(--cal) 13%, transparent);
+  border-radius: 3px;
+  overflow: hidden;
+  padding: 1px 4px;
+  font-size: 10.5px;
+  line-height: 1.25;
+  color: color-mix(in srgb, var(--cal) 70%, var(--text));
+}
+.ext-event span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ext-event.free {
+  background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--cal) 10%, transparent) 0 4px, transparent 4px 8px);
+  border-left-style: dashed;
+}
+
+/* Termine in der Monatsansicht als Punkte */
+.mday-ext { display: flex; gap: 3px; align-items: center; margin-top: auto; }
+.mday-ext i { width: 7px; height: 7px; border-radius: 50%; background: var(--cal); }
+.mday-ext i.allday { width: 12px; border-radius: 3px; }
+.mday-ext span { font-size: 10px; color: var(--muted); }
+
+/* Einstellungen: Kalender */
+dialog { max-height: calc(100vh - 32px); overflow-y: auto; }
+dialog label.inline { flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
+dialog label.inline input { width: 70px; }
+dialog label.check { flex-direction: row; align-items: center; gap: 5px; color: var(--text); font-size: 13px; white-space: nowrap; }
+dialog label.check input { width: auto; }
+.cal-settings { display: flex; flex-direction: column; gap: 10px; }
+.cal-source { display: flex; flex-direction: column; gap: 6px; }
+.cal-source-body { display: flex; flex-direction: column; gap: 6px; padding-left: 22px; }
+.cal-source-body .hint { margin: 0; font-size: 12px; }
+.cal-status-line { font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.cal-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.cal-row-main { display: flex; align-items: center; gap: 6px; flex: 1 1 220px; min-width: 0; }
+.cal-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.cal-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-row input[type="color"] { width: 28px; height: 26px; padding: 1px; flex: none; }
+.cal-name-input { flex: 0 1 130px; }
+.cal-url-input { flex: 1 1 160px; min-width: 0; }
+.close-x.inline-x { position: static; flex: none; }
+.cal-row-error { flex-basis: 100%; font-size: 12px; color: var(--orange); }

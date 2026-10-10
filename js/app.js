@@ -9,8 +9,10 @@ import { Model } from './model.js';
 import { setupDrag } from './drag.js';
 import { renderTaskFilters, renderTaskList, esc } from './ui-tasks.js';
 import { renderWeek, renderMonth, timeAt, range, percentOf, minutesPerPx } from './ui-calendar.js';
+import { Calendars, calSettings } from './calendars.js';
+import { Google, preload as preloadGoogle } from './google.js';
 import {
-  today, addDays, addMonths, startOfWeek, isoWeek, daysBetween, monthTitle, weekdayShort, fmtDate, fmtDateLong,
+  today, addDays, addMonths, startOfWeek, startOfMonth, isoWeek, daysBetween, monthTitle, weekdayShort, fmtDate, fmtDateLong,
   fmtDuration, fmtHours, parseDuration, toHHMM, fromHHMM, weekdayIndex, WEEKDAYS,
 } from './dates.js';
 
@@ -48,7 +50,7 @@ function savePrefs() {
   }
 }
 
-let store, model, dbx;
+let store, model, dbx, cal;
 
 // ---------- Start ----------
 
@@ -77,29 +79,48 @@ async function main() {
   store = new Store(remote, cacheName);
   model = new Model(store);
   await store.init();
+  cal = new Calendars(model, `dropplan.calendars.${cacheName}`, () => {
+    renderCalStatus();
+    scheduleRender();
+  });
 
   $('#app').hidden = false;
   $('#btn-settings').hidden = false;
-  let queued = false;
+  // Kalender-Einstellungen können sich auch durch ein anderes Gerät ändern (settings.json in der Dropbox)
+  let calSig = JSON.stringify(calSettings(model.settings()));
   store.onChange((dataChanged) => {
     renderSync();
-    if (!dataChanged || queued) return;
-    queued = true;
-    // gebündelt neu zeichnen (setTimeout statt requestAnimationFrame, das in Hintergrund-Tabs pausiert)
-    setTimeout(() => {
-      queued = false;
-      if (ui.busy) ui.renderPending = true; // z. B. während die Dauer gezogen wird
-      else render();
-    }, 0);
+    if (!dataChanged) return;
+    const sig = JSON.stringify(calSettings(model.settings()));
+    if (sig !== calSig) {
+      calSig = sig;
+      cal.settingsChanged();
+    }
+    scheduleRender();
   });
   render();
   renderSync();
+  renderCalStatus();
+  setInterval(renderCalStatus, 30_000);
+  cal.start();
   setupDrag({ accepts, describe, hover, onDrop });
   setupPan();
   setupListLayout();
   watchCalendarWidth();
   wireEvents();
   store.start();
+}
+
+// gebündelt neu zeichnen (setTimeout statt requestAnimationFrame, das in Hintergrund-Tabs pausiert)
+let renderQueued = false;
+function scheduleRender() {
+  if (renderQueued) return;
+  renderQueued = true;
+  setTimeout(() => {
+    renderQueued = false;
+    if (ui.busy) ui.renderPending = true; // z. B. während die Dauer gezogen wird
+    else render();
+  }, 0);
 }
 
 function showConnect(message = '') {
@@ -167,7 +188,9 @@ function renderCalendar({ jump = false } = {}) {
   const body = $('#cal-body');
   if (ui.view === 'month') {
     $('#cal-title').textContent = monthTitle(ui.anchor);
-    body.innerHTML = renderMonth(model, ui.anchor, ui.selected);
+    const gridStart = startOfWeek(startOfMonth(ui.anchor));
+    cal.ensureWindow(gridStart, addDays(gridStart, 42));
+    body.innerHTML = renderMonth(model, cal, ui.anchor, ui.selected);
     body.classList.add('pannable');
     return;
   }
@@ -177,7 +200,8 @@ function renderCalendar({ jump = false } = {}) {
   const keep = !jump && old ? { start: old.dataset.start, days: old.scrollLeft / colw } : null;
   const start = addDays(startOfWeek(ui.anchor), -7 * WEEKS_AROUND);
   colw = computeColWidth();
-  body.innerHTML = renderWeek(model, start, STRIP_DAYS, ui.selected);
+  cal.ensureWindow(start, addDays(start, STRIP_DAYS));
+  body.innerHTML = renderWeek(model, cal, start, STRIP_DAYS, ui.selected);
   const sc = body.querySelector('.week-scroll');
   sc.style.setProperty('--colw', `${colw}px`);
   sc.scrollLeft = (keep ? keep.days + daysBetween(start, keep.start) : daysBetween(start, ui.anchor)) * colw;
@@ -278,6 +302,46 @@ function setupListLayout() {
     addEventListener('pointermove', move);
     addEventListener('pointerup', up);
   });
+}
+
+// ---------- Kalender-Status oben rechts ----------
+
+function ago(ms) {
+  const min = Math.floor((Date.now() - ms) / 60_000);
+  if (min < 1) return 'gerade eben';
+  if (min < 60) return `vor ${min} min`;
+  return `vor ${Math.floor(min / 60)} h`;
+}
+
+function renderCalStatus() {
+  const box = $('#cal-status');
+  box.hidden = !cal.anyEnabled();
+  if (box.hidden) return;
+  $('#btn-cal-refresh').classList.toggle('spinning', cal.refreshing);
+  const text = $('#cal-status-text');
+  const g = cal.googleState();
+  const errors = cal.errors();
+  text.title = errors.map((e) => `${e.name}: ${e.error}`).join('\n');
+  if (g === 'expired' || g === 'disconnected') {
+    text.innerHTML = `<a href="#" data-google-connect>Google ${g === 'expired' ? 'neu verbinden' : 'verbinden'}</a>`;
+  } else if (cal.refreshing) {
+    text.textContent = 'Kalender …';
+  } else if (errors.length) {
+    text.innerHTML = `<span class="cal-error">⚠ Kalender</span>`;
+  } else {
+    text.textContent = cal.lastRefresh ? `Kalender ${ago(cal.lastRefresh)}` : '';
+  }
+}
+
+// Google-Anmeldung muss direkt aus dem Klick heraus starten
+function connectGoogle(after) {
+  Google.connect()
+    .then(() => {
+      after?.();
+      cal.refresh();
+    })
+    .catch((e) => alert(`Google: ${e.message}`))
+    .finally(renderCalStatus);
 }
 
 // ---------- Ziehen & Ablegen ----------
@@ -665,6 +729,10 @@ function saveTaskForm() {
 
 // ---------- Einstellungen ----------
 
+let calDraft = null; // Kalender-Einstellungen, bis "Speichern" gedrückt wird
+
+const PALETTE = ['#2563eb', '#16a34a', '#d97706', '#9333ea', '#dc2626', '#0891b2', '#db2777', '#65a30d'];
+
 function openSettings() {
   const s = model.settings();
   const f = $('#settings-form');
@@ -674,8 +742,134 @@ function openSettings() {
   $('#weekday-caps').innerHTML = WEEKDAYS.map(
     (d, i) => `<label>${d}<input type="number" name="cap${i}" min="0" max="24" step="0.25" value="${s.weekdayCapacity[i] / 60}"></label>`,
   ).join('');
+  calDraft = calSettings(s);
+  f.refreshMinutes.value = calDraft.refreshMinutes;
+  f.googleEnabled.checked = calDraft.google.enabled;
+  f.icalEnabled.checked = calDraft.ical.enabled;
+  renderCalSettings();
+  if (calDraft.google.enabled && Google.token()) loadGoogleCalendars();
   $('#btn-disconnect').hidden = !!localDevice;
   $('#settings-dialog').showModal();
+}
+
+function calRow(key, { name, color, show, count }, extra = '') {
+  const error = cal.errorFor(key);
+  return `
+    <div class="cal-row" data-key="${esc(key)}">
+      <div class="cal-row-main">
+        ${extra || `<span class="cal-dot" style="background:${esc(color || '#64748b')}"></span><span class="cal-name">${esc(name)}</span>`}
+      </div>
+      <label class="check"><input type="checkbox" data-field="show" ${show ? 'checked' : ''}> anzeigen</label>
+      <label class="check" title="Termine, die als „beschäftigt“ markiert sind, belegen Kapazität; ganztägige die ganze Tageskapazität"><input type="checkbox" data-field="count" ${count ? 'checked' : ''}> zählt mit</label>
+      ${error ? `<div class="cal-row-error">⚠ ${esc(error)}</div>` : ''}
+    </div>`;
+}
+
+function renderCalSettings() {
+  // Google
+  const g = $('#google-settings');
+  g.hidden = !calDraft.google.enabled;
+  if (!g.hidden) {
+    const state = Google.token() ? 'ok' : Google.known() ? 'expired' : 'disconnected';
+    const status =
+      state === 'ok'
+        ? `Verbunden${Google.email() ? ` als <b>${esc(Google.email())}</b>` : ''} <button type="button" data-g-act="reload">Kalender neu laden</button> <button type="button" data-g-act="disconnect">Trennen</button>`
+        : state === 'expired'
+          ? `Anmeldung abgelaufen. <button type="button" class="primary" data-g-act="connect">Neu verbinden</button>`
+          : `<button type="button" class="primary" data-g-act="connect">Mit Google verbinden</button> <small>Die Anmeldung gilt nur für diesen Browser.</small>`;
+    const cals = Object.entries(calDraft.google.calendars).sort(([, a], [, b]) => (b.primary ? 1 : 0) - (a.primary ? 1 : 0) || a.name.localeCompare(b.name, 'de'));
+    g.innerHTML = `
+      <div class="cal-status-line">${status}</div>
+      ${cals.length ? cals.map(([id, c]) => calRow(`g:${id}`, c)).join('') : '<p class="hint">Nach dem Verbinden erscheinen hier deine Google-Kalender.</p>'}`;
+  }
+  // iCal
+  const i = $('#ical-settings');
+  i.hidden = !calDraft.ical.enabled;
+  if (!i.hidden) {
+    i.innerHTML = `
+      ${calDraft.ical.feeds
+        .map((f) =>
+          calRow(
+            `i:${f.id}`,
+            f,
+            `<input type="color" data-field="color" value="${esc(f.color)}" title="Farbe">
+             <input data-field="name" value="${esc(f.name)}" placeholder="Name" class="cal-name-input">
+             <input data-field="url" value="${esc(f.url)}" placeholder="https://… oder webcal://…" class="cal-url-input">
+             <button type="button" class="close-x inline-x" data-ical-remove title="Entfernen">×</button>`,
+          ),
+        )
+        .join('')}
+      <button type="button" data-ical-add>+ Kalender-Abo hinzufügen</button>
+      <p class="hint">Abo-Adresse z. B. aus Google („Privatadresse im iCal-Format“), Apple iCloud (Kalender teilen → „Öffentlicher Kalender“) oder Outlook („Kalender veröffentlichen“).</p>`;
+  }
+}
+
+async function loadGoogleCalendars() {
+  try {
+    const list = await Google.calendars();
+    const next = {};
+    for (const c of list) {
+      const old = calDraft.google.calendars[c.id];
+      // neue Kalender: anzeigen, wenn sie auch in Google angezeigt werden; mitzählen nur auf Wunsch
+      next[c.id] = { name: c.name, color: c.color, primary: c.primary, show: old ? old.show : c.selected, count: old ? old.count : false };
+    }
+    calDraft.google.calendars = next;
+  } catch (e) {
+    alert(e.message);
+  }
+  renderCalSettings();
+}
+
+function wireCalSettings() {
+  const f = $('#settings-form');
+  f.googleEnabled.addEventListener('change', () => {
+    calDraft.google.enabled = f.googleEnabled.checked;
+    if (calDraft.google.enabled) preloadGoogle().catch(() => {}); // damit der erste Klick auf "Verbinden" klappt
+    renderCalSettings();
+    if (calDraft.google.enabled && Google.token() && !Object.keys(calDraft.google.calendars).length) loadGoogleCalendars();
+  });
+  f.icalEnabled.addEventListener('change', () => {
+    calDraft.ical.enabled = f.icalEnabled.checked;
+    if (calDraft.ical.enabled && !calDraft.ical.feeds.length) addFeed();
+    renderCalSettings();
+  });
+  const addFeed = () =>
+    calDraft.ical.feeds.push({
+      id: Date.now().toString(36),
+      name: `Kalender ${calDraft.ical.feeds.length + 1}`,
+      url: '',
+      color: PALETTE[calDraft.ical.feeds.length % PALETTE.length],
+      show: true,
+      count: false,
+    });
+
+  const box = $('.cal-settings');
+  box.addEventListener('click', (e) => {
+    const act = e.target.closest('[data-g-act]')?.dataset.gAct;
+    if (act === 'connect') connectGoogle(loadGoogleCalendars);
+    else if (act === 'reload') loadGoogleCalendars();
+    else if (act === 'disconnect') {
+      Google.disconnect();
+      renderCalSettings();
+      renderCalStatus();
+    } else if (e.target.closest('[data-ical-add]')) {
+      addFeed();
+      renderCalSettings();
+    } else if (e.target.closest('[data-ical-remove]')) {
+      const key = e.target.closest('.cal-row').dataset.key;
+      calDraft.ical.feeds = calDraft.ical.feeds.filter((x) => `i:${x.id}` !== key);
+      renderCalSettings();
+    }
+  });
+  // Eingaben in den Kalenderzeilen in den Entwurf übernehmen
+  box.addEventListener('input', (e) => {
+    const field = e.target.dataset.field;
+    const key = e.target.closest('.cal-row')?.dataset.key;
+    if (!field || !key) return;
+    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    const target = key.startsWith('g:') ? calDraft.google.calendars[key.slice(2)] : calDraft.ical.feeds.find((x) => `i:${x.id}` === key);
+    if (target) target[field] = value;
+  });
 }
 
 function saveSettings() {
@@ -687,6 +881,11 @@ function saveSettings() {
     weekdayCapacity: WEEKDAYS.map((_, i) => Math.round(Number(f[`cap${i}`].value || 0) * 60)),
     coreStart: Math.min(coreStart, coreEnd - 1),
     coreEnd,
+    calendars: {
+      refreshMinutes: Math.max(1, Math.round(Number(f.refreshMinutes.value) || 5)),
+      google: calDraft.google,
+      ical: { ...calDraft.ical, feeds: calDraft.ical.feeds.filter((x) => x.url.trim()).map((x) => ({ ...x, url: x.url.trim() })) },
+    },
   });
 }
 
@@ -814,6 +1013,13 @@ function wireEvents() {
   });
 
   $('#btn-settings').addEventListener('click', openSettings);
+  wireCalSettings();
+  $('#btn-cal-refresh').addEventListener('click', () => cal.refresh());
+  $('#cal-status').addEventListener('click', (e) => {
+    if (!e.target.closest('[data-google-connect]')) return;
+    e.preventDefault();
+    connectGoogle();
+  });
   $('#settings-dialog').addEventListener('close', () => {
     if ($('#settings-dialog').returnValue === 'save') saveSettings();
   });

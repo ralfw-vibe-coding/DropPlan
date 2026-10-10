@@ -48,6 +48,24 @@ Aufgaben und Einplanungen liegen bewusst in getrennten Dateien:
 - Gespeichert wird lokal sofort, hochgeladen wird im Hintergrund. Auch offline gemachte Änderungen werden später hochgeladen.
 - Konflikte: Jeder Upload gibt die zuletzt gelesene Version (`rev`) mit. Hat ein anderes Gerät inzwischen geschrieben, lehnt Dropbox den Upload ab. Die App führt dann beide Stände feldweise zusammen und lädt erneut hoch.
 
+## Kalender im Hintergrund (Google, iCal)
+
+Termine aus Google Calendar und aus iCal-Abos (Apple iCloud, Google, Outlook …) erscheinen hinter den eigenen Einplanungen. Pro Kalender lässt sich einstellen, ob er **angezeigt** wird und ob er **mitzählt**. Mitzählende Termine, die als „beschäftigt“ markiert sind, belegen Kapazität. Ein ganztägiger Termin belegt dabei die volle Tageskapazität. Aktualisiert wird alle 5 Minuten (einstellbar), solange die Seite sichtbar ist, oder über ⟳.
+
+**Wo was liegt:**
+- In `settings.json` (Dropbox, auf allen Geräten gleich): Quellen ein/aus, Kalenderauswahl, iCal-Adressen, Intervall.
+- Nur im Browser: die Google-Anmeldung und die abgerufenen Termine als Zwischenspeicher.
+
+**iCal-Abos:** Die Abo-Adresse (`https://…ics` oder `webcal://…`) unter ⚙︎ eintragen. Kalenderdienste erlauben keinen direkten Abruf aus dem Browser, deshalb holt die Netlify-Funktion [`netlify/functions/ics.mjs`](netlify/functions/ics.mjs) die Datei ab (`/api/ics`, Adresse per POST, nichts wird gespeichert). Lokal benutzt die App die Funktion der veröffentlichten Seite.
+
+**Google Calendar (einmalig in der [Google Cloud Console](https://console.cloud.google.com/)):**
+1. Projekt anlegen und die *Google Calendar API* aktivieren.
+2. *Google Auth Platform* einrichten: Zielgruppe „Extern“, Datenzugriff `…/auth/calendar.readonly`, Testnutzer eintragen. Alternativ die App veröffentlichen; dann erscheint ein Hinweis „nicht überprüft“.
+3. OAuth-Client vom Typ *Webanwendung* mit den JavaScript-Ursprüngen der Seite, z. B. `https://ralfw-dropplan.netlify.app` und `http://localhost:8080`.
+4. Die Client-ID in `js/config.js` eintragen. Ein Client Secret wird nicht gebraucht und gehört nicht ins Repo.
+
+Die Google-Anmeldung gilt pro Browser und etwa eine Stunde. Danach steht oben „Google neu verbinden“, und es reicht ein Klick.
+
 ## Code
 
 | Datei | Aufgabe |
@@ -59,3 +77,11 @@ Aufgaben und Einplanungen liegen bewusst in getrennten Dateien:
 | `js/ui-tasks.js`, `js/ui-calendar.js` | HTML für Liste, Monat und Woche |
 | `js/drag.js` | Ziehen und Ablegen für Maus und Touch (auf Touch-Geräten lange drücken) |
 | `js/app.js` | Verdrahtung, Dialoge, Popover |
+| `js/calendars.js` | Externe Kalender: Abruf, Zwischenspeicher, Termine pro Tag, belegte Minuten |
+| `js/google.js` | Google-Anmeldung (Google Identity Services) und Calendar API |
+| `js/icsfeed.js` | iCal-Abos abrufen und einlesen |
+| `netlify/functions/ics.mjs` | Abruf der iCal-Abos auf dem Server (wegen CORS) |
+
+## Fremdcode
+
+`js/vendor/ical.min.js` ist [ical.js](https://github.com/kewisch/ical.js) 2.2.1, unverändert, unter der Mozilla Public License 2.0 (siehe `js/vendor/ical.LICENSE.txt`).

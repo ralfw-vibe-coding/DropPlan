@@ -64,11 +64,14 @@ export class Model {
   }
 
   // Auslastung eines Tages
-  load(date, bookings = this.bookingsOn(date)) {
-    const minutes = bookings.reduce((sum, b) => sum + b.minutes, 0);
+  // Auslastung eines Tages; calendarMinutes(capacity) liefert die von Kalenderterminen belegte Zeit
+  load(date, bookings = this.bookingsOn(date), calendarMinutes = () => 0) {
+    const planned = bookings.reduce((sum, b) => sum + b.minutes, 0);
     const capacity = this.capacity(date);
+    const external = calendarMinutes(capacity);
+    const minutes = planned + external;
     const ratio = capacity > 0 ? minutes / capacity : minutes > 0 ? Infinity : 0;
-    return { minutes, capacity, count: bookings.length, ratio };
+    return { minutes, planned, external, capacity, count: bookings.length, ratio };
   }
 
   tags() {
