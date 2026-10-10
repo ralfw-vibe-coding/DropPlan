@@ -1,2 +1,4 @@
 .DS_Store
 .netlify
+# Google OAuth Client Secret – niemals committen
+client_secret_*.json
