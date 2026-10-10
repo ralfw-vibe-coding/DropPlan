@@ -209,6 +209,11 @@ body.resizing, body.resizing * { cursor: col-resize !important; user-select: non
 .task-title { overflow-wrap: anywhere; }
 .task-meta { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 4px; font-size: 12px; color: var(--muted); align-items: center; }
 .planned { color: var(--accent); }
+/* Eingeplant im Vergleich zur Schätzung */
+.est-g { background: color-mix(in srgb, var(--green) 15%, var(--panel)); color: var(--green); font-weight: 600; }
+.est-y { background: var(--amber-soft); color: #a16207; font-weight: 600; }
+.est-r { background: var(--red-soft); color: var(--red); font-weight: 600; }
+.new-task .estimate-input { width: 58px; flex: none; text-align: center; }
 
 .state-dot {
   flex: none;

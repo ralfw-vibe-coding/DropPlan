@@ -82,12 +82,14 @@ export class Model {
 
   // ---- Aufgaben ----
 
-  addTask(title) {
+  // estimateMinutes: geschätzte Dauer (optional)
+  addTask(title, estimateMinutes = null) {
     const keys = this.tasks().map(sortKey);
     const task = {
       id: newId(),
       order: (keys.length ? Math.min(...keys) : 0) - 1,
       title,
+      estimateMinutes,
       notes: '',
       tags: [],
       deadline: null,

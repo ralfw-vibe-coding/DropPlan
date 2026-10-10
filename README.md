@@ -30,7 +30,7 @@ Bis zu 500 Dropbox-Nutzer können die App verbinden, ohne dass sie bei Dropbox a
 
 | Pfad | Inhalt |
 |---|---|
-| `/tasks/<id>.json` | Aufgabe: Titel, Notiz, Tags, Deadline, Wiedervorlage, `activatedAt`, `archivedAt` |
+| `/tasks/<id>.json` | Aufgabe: Titel, Notiz, Tags, Schätzung (`estimateMinutes`), Deadline, Wiedervorlage, `activatedAt`, `archivedAt` |
 | `/bookings/<id>.json` | Einplanung einer Aufgabe an einem Tag: `date`, `minutes`, `start` (`"HH:MM"` oder `null` = nur reserviert) |
 | `/days/<YYYY-MM-DD>.json` | Kapazität eines einzelnen Tages, nur wenn sie vom Standard abweicht |
 | `/settings.json` | Standard-Dauer, Kapazität pro Wochentag, Kernzeit |

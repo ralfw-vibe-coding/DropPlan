@@ -7,7 +7,7 @@ import { Store } from './store.js';
 import { deleteCache } from './idb.js';
 import { Model } from './model.js';
 import { setupDrag } from './drag.js';
-import { renderTaskFilters, renderTaskList, esc } from './ui-tasks.js';
+import { renderTaskFilters, renderTaskList, estimateInfo, esc } from './ui-tasks.js';
 import { renderWeek, renderMonth, timeAt, range, percentOf, minutesPerPx } from './ui-calendar.js';
 import { Calendars, calSettings } from './calendars.js';
 import { Google, preload as preloadGoogle } from './google.js';
@@ -681,6 +681,20 @@ function openCapacityPopover(el, date) {
 
 let editingId = null;
 
+// Schätzung aus einem Eingabefeld: Minuten, null (leer) oder undefined (ungültig, Feld wird markiert)
+function estimateFrom(input) {
+  const text = input.value.trim();
+  input.classList.remove('invalid');
+  if (!text) return null;
+  const min = parseDuration(text);
+  if (!(min > 0)) {
+    input.classList.add('invalid');
+    input.focus();
+    return undefined;
+  }
+  return min;
+}
+
 function openTask(id) {
   const task = model.task(id);
   if (!task) return;
@@ -691,6 +705,8 @@ function openTask(id) {
   f.tags.value = (task.tags || []).join(', ');
   f.deadline.value = task.deadline || '';
   f.followUp.value = task.followUp || '';
+  f.estimate.value = task.estimateMinutes ? fmtHours(task.estimateMinutes) : '';
+  f.estimate.classList.remove('invalid');
   $('#tag-list').innerHTML = model.tags().map((t) => `<option value="${esc(t)}">`).join('');
   renderTaskDetails();
   $('#task-dialog').showModal();
@@ -709,7 +725,9 @@ function renderTaskDetails() {
   const bookings = model.bookingsOf(editingId);
   const total = bookings.reduce((s, b) => s + b.minutes, 0);
   $('#task-bookings').innerHTML = bookings.length
-    ? `<div class="pop-label">Im Kalender · ${fmtHours(total)} h</div>
+    ? `<div class="pop-label">Im Kalender · ${fmtHours(total)} h${
+        task.estimateMinutes > 0 ? ` <span class="badge ${estimateInfo(total, task.estimateMinutes).cls}">${Math.round((total / task.estimateMinutes) * 100)} % von ${fmtHours(task.estimateMinutes)} h geschätzt</span>` : ''
+      }</div>
        <ul>${bookings.map((b) => `<li data-goto-week="${b.date}">${weekdayShort(b.date)} ${fmtDate(b.date)}${b.date.slice(0, 4)} · ${b.start ? `${b.start} · ` : ''}${fmtDuration(b.minutes)}</li>`).join('')}</ul>`
     : '';
 }
@@ -724,7 +742,12 @@ function saveTaskForm() {
     tags,
     deadline: f.deadline.value || null,
     followUp: f.followUp.value || null,
+    ...(() => {
+      const estimate = estimateFrom(f.estimate);
+      return estimate === undefined ? {} : { estimateMinutes: estimate }; // ungültige Eingabe: alten Wert behalten
+    })(),
   });
+  renderTaskDetails();
 }
 
 // ---------- Einstellungen ----------
@@ -910,9 +933,12 @@ function wireEvents() {
     e.preventDefault();
     const title = e.target.title.value.trim();
     if (!title) return;
+    const estimate = estimateFrom(e.target.estimate);
+    if (estimate === undefined) return;
     ui.filter.archive = false;
-    model.addTask(title);
+    model.addTask(title, estimate);
     e.target.reset();
+    e.target.title.focus();
   });
 
   document.querySelectorAll('[data-view]').forEach((b) =>

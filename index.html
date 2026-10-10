@@ -37,6 +37,7 @@
       <form class="new-task" id="new-task" autocomplete="off">
         <button type="button" class="icon-btn chevron-btn" id="btn-collapse" title="Liste einklappen">‹</button>
         <input name="title" placeholder="Neue Aufgabe …" aria-label="Neue Aufgabe">
+        <input name="estimate" class="estimate-input" placeholder="Std." inputmode="decimal" aria-label="Geschätzte Dauer in Stunden" title="Geschätzte Dauer in Stunden (optional), z. B. 3 oder 2,5">
         <button class="primary" type="submit">+</button>
       </form>
       <div class="filters" id="filters"></div>
@@ -70,6 +71,7 @@
       <label>Tags <small>mit Komma trennen, z. B. backlog, ready</small><input name="tags" list="tag-list"></label>
       <datalist id="tag-list"></datalist>
       <div class="row">
+        <label>Schätzung (Std.)<input name="estimate" inputmode="decimal" placeholder="z. B. 2,5"></label>
         <label>Deadline<input type="date" name="deadline"></label>
         <label>Wiedervorlage<input type="date" name="followUp"></label>
       </div>

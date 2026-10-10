@@ -16,6 +16,13 @@ export function deadlineInfo(deadline) {
   return { cls: 'dl-later', text: `fällig ${fmtDate(deadline)}` };
 }
 
+// Aufgelaufene (eingeplante) Zeit im Vergleich zur Schätzung: bis 110 % grün, ab 200 % rot, dazwischen gelb
+export function estimateInfo(spent, estimate) {
+  const ratio = spent / estimate;
+  const cls = ratio <= 1.1 ? 'est-g' : ratio >= 2 ? 'est-r' : 'est-y';
+  return { cls, title: `${Math.round(ratio * 100)} % der geschätzten Dauer im Kalender eingeplant` };
+}
+
 export function visibleTasks(model, filter) {
   const t = today();
   return model
@@ -71,7 +78,11 @@ export function renderTaskList(model, filter) {
             : `<span class="badge wv-due">Wiedervorlage</span>`,
         );
       }
-      if (planned.get(task.id)) meta.push(`<span class="planned">${fmtHours(planned.get(task.id))} h verplant</span>`);
+      const spent = planned.get(task.id) || 0;
+      if (task.estimateMinutes > 0) {
+        const e = estimateInfo(spent, task.estimateMinutes);
+        meta.push(`<span class="badge ${e.cls}" title="${e.title}">${fmtHours(spent)} / ${fmtHours(task.estimateMinutes)} h</span>`);
+      } else if (spent) meta.push(`<span class="planned">${fmtHours(spent)} h verplant</span>`);
       return `
         <li class="task ${active ? 'active' : 'passive'} ${task.archivedAt ? 'archived' : ''}"
             data-drag="task" data-id="${task.id}" data-label="${esc(task.title)}" data-open-task="${task.id}">
