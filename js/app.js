@@ -33,6 +33,7 @@ const ui = {
   view: prefs.view || 'week',
   anchor: startOfWeek(today()), // Woche: erster sichtbarer Tag · Monat: ein Tag im Monat
   selected: null, // in der Monatsansicht angeklickter Tag, in der Woche umrandet
+  armed: null, // {id, act}: Aufgaben-Knopf, der auf die Bestätigung wartet
   busy: false, // läuft gerade eine Ziehgeste, die nicht unterbrochen werden darf?
   renderPending: false,
   collapsed: !!prefs.collapsed, // Aufgabenliste eingeklappt
@@ -141,7 +142,7 @@ function showConnect(message = '') {
 function render() {
   $('#filters').innerHTML = renderTaskFilters(model, ui.filter);
   const list = $('#task-list');
-  list.innerHTML = renderTaskList(model, ui.filter);
+  list.innerHTML = renderTaskList(model, ui.filter, ui.armed);
   $('.strip-label').textContent = `Aufgaben (${list.querySelectorAll('.task').length})`;
   // Umsortieren nur in der normalen Liste, nicht im Archiv
   if (ui.filter.archive) delete list.dataset.drop;
@@ -750,6 +751,25 @@ function saveTaskForm() {
   renderTaskDetails();
 }
 
+// Archivieren / Wiederherstellen / Löschen direkt in der Liste: erster Klick zeigt "?", zweiter führt aus
+let disarmTimer = null;
+
+function taskAction(id, act) {
+  clearTimeout(disarmTimer);
+  const confirmed = ui.armed?.id === id && ui.armed.act === act;
+  ui.armed = confirmed ? null : { id, act };
+  if (confirmed) {
+    if (act === 'delete') model.deleteTask(id);
+    else model.updateTask(id, { archivedAt: act === 'archive' ? new Date().toISOString() : null });
+  } else {
+    disarmTimer = setTimeout(() => {
+      ui.armed = null;
+      render();
+    }, 3000);
+  }
+  render();
+}
+
 // ---------- Einstellungen ----------
 
 let calDraft = null; // Kalender-Einstellungen, bis "Speichern" gedrückt wird
@@ -980,6 +1000,8 @@ function wireEvents() {
       closePopover();
       if (!e.target.closest('[data-booking], [data-cap]')) return;
     }
+    const act = e.target.closest('[data-task-act]');
+    if (act) return taskAction(act.dataset.id, act.dataset.taskAct);
     const cap = e.target.closest('[data-cap]');
     if (cap) return openCapacityPopover(cap, cap.dataset.cap);
     const booking = e.target.closest('[data-booking]');

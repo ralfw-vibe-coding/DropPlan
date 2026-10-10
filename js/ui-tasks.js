@@ -52,7 +52,28 @@ export function renderTaskFilters(model, filter) {
     <button class="chip toggle ${filter.archive ? 'on' : ''}" data-filter="archive" title="Nur archivierte Aufgaben zeigen">Archiv${archived ? ` (${archived})` : ''}</button>`;
 }
 
-export function renderTaskList(model, filter) {
+// Symbole von Lucide (https://lucide.dev, ISC-Lizenz)
+const svg = (body) =>
+  `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+const ICONS = {
+  trash: svg('<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>'),
+  archive: svg('<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>'),
+  restore: svg('<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h2"/><path d="M20 8v11a2 2 0 0 1-2 2h-2"/><path d="m9 15 3-3 3 3"/><path d="M12 12v9"/>'),
+};
+
+// Archivieren/Wiederherstellen und Löschen; armed = {id, act}: dieser Knopf wartet auf die Bestätigung ("?")
+function taskActions(task, armed) {
+  const button = (act, icon, label) => {
+    const on = armed?.id === task.id && armed.act === act;
+    return `<button type="button" class="task-act ${act} ${on ? 'armed' : ''}" data-task-act="${act}" data-id="${task.id}"
+              title="${on ? `Nochmal klicken: ${label}` : label}" aria-label="${label}">${on ? '?' : icon}</button>`;
+  };
+  return `<div class="task-acts">${
+    task.archivedAt ? button('restore', ICONS.restore, 'Wiederherstellen') : button('archive', ICONS.archive, 'Archivieren')
+  }${button('delete', ICONS.trash, 'Löschen')}</div>`;
+}
+
+export function renderTaskList(model, filter, armed = null) {
   const tasks = visibleTasks(model, filter);
   if (!tasks.length) {
     const text = filter.archive ? 'Keine archivierten Aufgaben.' : model.tasks().length ? 'Keine passenden Aufgaben.' : 'Keine Aufgaben. Oben eine neue anlegen.';
@@ -91,6 +112,7 @@ export function renderTaskList(model, filter) {
             <div class="task-title">${esc(task.title)}</div>
             ${meta.length ? `<div class="task-meta">${meta.join('')}</div>` : ''}
           </div>
+          ${taskActions(task, armed)}
         </li>`;
     })
     .join('');

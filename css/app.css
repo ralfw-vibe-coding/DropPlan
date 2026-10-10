@@ -206,6 +206,27 @@ body.resizing, body.resizing * { cursor: col-resize !important; user-select: non
 .task.active .task-title { font-weight: 600; }
 .task.archived { opacity: 0.6; }
 .task-main { min-width: 0; flex: 1; }
+/* Archivieren / Löschen in der Zeile: erscheint beim Darüberfahren, auf Touch-Geräten immer */
+.task-acts { display: flex; gap: 2px; flex: none; margin: -2px -4px 0 0; visibility: hidden; }
+.task:hover .task-acts, .task-acts:has(.armed) { visibility: visible; }
+@media (hover: none) { .task-acts { visibility: visible; } }
+.task-act {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--muted);
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 14px;
+}
+.task-act:hover { background: var(--offhours); color: var(--text); border-color: transparent; }
+.task-act.delete:hover { color: var(--red); }
+.task-act.armed { color: #fff; background: var(--accent); }
+.task-act.delete.armed { background: var(--red); }
 .task-title { overflow-wrap: anywhere; }
 .task-meta { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 4px; font-size: 12px; color: var(--muted); align-items: center; }
 .planned { color: var(--accent); }

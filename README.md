@@ -85,3 +85,5 @@ Die Google-Anmeldung gilt pro Browser und etwa eine Stunde. Danach steht oben �
 ## Fremdcode
 
 `js/vendor/ical.min.js` ist [ical.js](https://github.com/kewisch/ical.js) 2.2.1, unverändert, unter der Mozilla Public License 2.0 (siehe `js/vendor/ical.LICENSE.txt`).
+
+Die Symbole für Archivieren und Löschen stammen von [Lucide](https://lucide.dev) (ISC-Lizenz).
