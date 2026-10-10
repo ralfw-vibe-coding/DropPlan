@@ -44,14 +44,15 @@ function extAllDay(list) {
     .join('')}${all.length > 3 ? `<div class="ext-more">+${all.length - 3}</div>` : ''}</div>`;
 }
 
-function extTimed(list, r) {
-  return layoutSpans(list.filter((x) => !x.allDay).map((x) => ({ x, s: x.s, e: Math.max(x.e, x.s + 15) })))
-    .map(({ x, s, e, lane, lanes }) => {
-      const top = Math.min(Math.max(pct(s, r), 0), 97);
-      const bottom = Math.min(Math.max(pct(e, r), top + 3), 100);
-      return `<div class="ext-event ${x.ev.busy ? 'busy' : 'free'}" style="--cal:${calColor(x)};top:${top}%;height:${bottom - top}%;left:${(lane / lanes) * 100}%;width:${100 / lanes}%" title="${extTooltip(x)}"><span>${esc(x.ev.title)}</span></div>`;
-    })
-    .join('');
+// Position im Stundenraster; Termine außerhalb des sichtbaren Zeitraums an den Rand legen, damit sie nicht verschwinden
+function place(s, e, r, lane, lanes) {
+  const top = Math.min(Math.max(pct(s, r), 0), 97);
+  const bottom = Math.min(Math.max(pct(e, r), top + 3), 100);
+  return `top:${top}%;height:${bottom - top}%;left:calc(${(lane / lanes) * 100}% + 2px);width:calc(${100 / lanes}% - 4px)`;
+}
+
+function extBlock({ x, s, e, lane, lanes }, r) {
+  return `<div class="ext-event ${x.ev.busy ? 'busy' : 'free'}" style="--cal:${calColor(x)};${place(s, e, r, lane, lanes)}" title="${extTooltip(x)}"><span>${esc(x.ev.title)}</span><small>${toHHMM(x.s)}–${toHHMM(Math.min(x.e, 24 * 60))}</small></div>`;
 }
 
 function extDots(list) {
@@ -166,16 +167,24 @@ export function renderWeek(model, cal, start, count, selected) {
   const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
   const cols = days
     .map((date) => {
-      const scheduled = (byDate.get(date) || []).filter((b) => b.start);
-      const blocks = layout(scheduled)
-        .map(({ b, lane, lanes }) => {
+      // eigene Termine und Kalendertermine gemeinsam anordnen: was sich überschneidet, steht nebeneinander
+      const spans = [
+        ...(byDate.get(date) || [])
+          .filter((b) => b.start)
+          .map((b) => ({ b, s: fromHHMM(b.start), e: fromHHMM(b.start) + Math.max(b.minutes, 15) })),
+        ...cal
+          .shown(date)
+          .filter((x) => !x.allDay)
+          .map((x) => ({ x, s: x.s, e: Math.max(x.e, x.s + 15) })),
+      ];
+      const items = layoutSpans(spans)
+        .map((it) => {
+          if (it.x) return extBlock(it, r);
+          const { b, lane, lanes } = it;
           const startMin = fromHHMM(b.start);
           const endMin = Math.min(startMin + b.minutes, 24 * 60);
-          // Termine außerhalb des sichtbaren Zeitraums an den Rand legen, damit sie nicht verschwinden
-          const top = Math.min(Math.max(pct(startMin, r), 0), 97);
-          const bottom = Math.min(Math.max(pct(endMin, r), top + 3), 100);
           return `<div class="block ${startMin < r.from || endMin > r.to ? 'outside' : ''}" data-drag="booking" data-id="${b.id}" data-booking="${b.id}" data-label="${esc(titleOf(b))}"
-                       style="top:${top}%;height:${bottom - top}%;left:calc(${(lane / lanes) * 100}% + 8px);width:calc(${100 / lanes}% - 10px)">
+                       style="${place(startMin, endMin, r, lane, lanes)}">
                     <div class="block-title">${esc(titleOf(b))}</div>
                     <div class="block-time">${b.start}–${toHHMM(endMin)} · ${fmtDuration(b.minutes)}</div>
                     <div class="resize" data-nodrag data-resize="${b.id}" title="Dauer ziehen"></div>
@@ -184,9 +193,8 @@ export function renderWeek(model, cal, start, count, selected) {
         .join('');
       return `
         <div class="wday-grid ${dayClass(date)} ${weekdayShort(date) === 'Mo' ? 'monday' : ''}" data-drop="time" data-date="${date}">
-          ${extTimed(cal.shown(date), r)}
           ${date === t && nowMin >= r.from && nowMin <= r.to ? `<div class="now" style="top:${pct(nowMin, r)}%"></div>` : ''}
-          ${blocks}
+          ${items}
         </div>`;
     })
     .join('');
@@ -203,10 +211,6 @@ export function renderWeek(model, cal, start, count, selected) {
 }
 
 // Überlappende Termine nebeneinander legen
-function layout(bookings) {
-  return layoutSpans(bookings.map((b) => ({ b, s: fromHHMM(b.start), e: fromHHMM(b.start) + b.minutes })));
-}
-
 // items: {s, e, …} in Minuten; ergänzt lane (Spalte) und lanes (Spalten im Überlappungsblock)
 function layoutSpans(spans) {
   const items = spans.map((x) => ({ ...x, lane: 0, lanes: 1 })).sort((x, y) => x.s - y.s || y.e - x.e);

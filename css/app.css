@@ -614,7 +614,9 @@ dialog h3 { margin-right: 28px; }
   line-height: 1.25;
   color: color-mix(in srgb, var(--cal) 70%, var(--text));
 }
-.ext-event span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ext-event span, .ext-event small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ext-event span { font-weight: 600; }
+.ext-event small { font-size: 10px; opacity: 0.8; }
 .ext-event.free {
   background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--cal) 10%, transparent) 0 4px, transparent 4px 8px);
   border-left-style: dashed;
