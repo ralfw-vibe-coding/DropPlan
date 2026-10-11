@@ -595,6 +595,64 @@ function openPopover(anchorEl, html, wire) {
 function closePopover() {
   popover.hidden = true;
   popover.innerHTML = '';
+  quickPreview.remove();
+}
+
+// ---------- Aufgabe direkt im Kalender anlegen ----------
+
+const quickPreview = document.createElement('div');
+quickPreview.className = 'drop-preview';
+
+// Klick auf eine freie Stelle: im Stundenraster mit Uhrzeit, im Reservierungsbereich ohne
+function openQuickAdd(e, date, grid) {
+  const minutes = model.settings().defaultMinutes;
+  let start = null;
+  if (grid) {
+    const r = range(model.settings());
+    const rect = grid.getBoundingClientRect();
+    const raw = r.from + ((e.clientY - rect.top) / rect.height) * (r.to - r.from);
+    start = Math.max(r.from, Math.min(Math.floor(raw / 15) * 15, r.to - 15));
+  }
+  const showPreview = (min) => {
+    if (start === null) return;
+    const r = range(model.settings());
+    quickPreview.textContent = `${toHHMM(start)}–${toHHMM(Math.min(start + min, 24 * 60))}`;
+    quickPreview.style.cssText = `top:${percentOf(start, r)}%;height:${Math.min(percentOf(start + min, r), 100) - percentOf(start, r)}%`;
+    grid.append(quickPreview);
+  };
+  const anchor = { getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0) };
+  openPopover(
+    anchor,
+    `<div class="pop-title">Neue Aufgabe · ${weekdayShort(date)} ${fmtDate(date)} · ${start === null ? 'reservieren' : toHHMM(start)}</div>
+     <form class="quick-add">
+       <input name="title" placeholder="Titel" aria-label="Titel" autocomplete="off">
+       <div class="pop-row">
+         <input name="dur" value="${fmtHours(minutes)}" aria-label="Dauer in Stunden" title="Dauer in Stunden, z. B. 1,5 oder 1:30"><span>h</span>
+         <span class="filter-spacer"></span>
+         <button class="primary">Anlegen</button>
+       </div>
+     </form>`,
+    (p) => {
+      const form = p.querySelector('form');
+      showPreview(minutes);
+      form.dur.addEventListener('input', () => {
+        const min = parseDuration(form.dur.value);
+        if (min > 0) showPreview(min);
+      });
+      form.addEventListener('submit', (ev) => {
+        ev.preventDefault();
+        const title = form.title.value.trim();
+        const min = parseDuration(form.dur.value);
+        form.title.classList.toggle('invalid', !title);
+        form.dur.classList.toggle('invalid', !(min > 0));
+        if (!title || !(min > 0)) return;
+        const task = model.addTask(title);
+        model.plan(task.id, date, start === null ? null : toHHMM(start), min);
+        closePopover();
+      });
+      form.title.focus();
+    },
+  );
 }
 
 const QUICK = [15, 30, 45, 60, 90, 120, 180, 240];
@@ -1008,6 +1066,13 @@ function wireEvents() {
     if (booking) return openBookingPopover(booking, booking.dataset.booking);
     const task = e.target.closest('[data-open-task]');
     if (task) return openTask(task.dataset.openTask);
+    // freie Stelle im Kalender: Aufgabe direkt anlegen
+    if (!e.target.closest('.block, .ext-event, .chip-booking, .ext-allday-list')) {
+      const grid = e.target.closest('.wday-grid');
+      if (grid) return openQuickAdd(e, grid.dataset.date, grid);
+      const reserved = e.target.closest('.wday-head .reserved');
+      if (reserved) return openQuickAdd(e, reserved.closest('.wday-head').dataset.date, null);
+    }
     const goto = e.target.closest('[data-goto-week]');
     if (goto) {
       if ($('#task-dialog').open) $('#task-dialog').close();

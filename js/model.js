@@ -127,14 +127,14 @@ export class Model {
   // ---- Einplanen ----
 
   // Aufgabe an einem Tag einplanen; start = "HH:MM" oder null (nur Zeit reservieren)
-  plan(taskId, date, start = null) {
+  plan(taskId, date, start = null, minutes = this.settings().defaultMinutes) {
     const task = this.task(taskId);
     if (!task) return;
     const booking = {
       id: newId(),
       taskId,
       date,
-      minutes: this.settings().defaultMinutes,
+      minutes,
       start,
       createdAt: now(),
     };
