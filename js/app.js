@@ -7,7 +7,7 @@ import { Store } from './store.js';
 import { deleteCache } from './idb.js';
 import { Model } from './model.js';
 import { setupDrag } from './drag.js';
-import { renderTaskFilters, renderTaskList, estimateInfo, esc } from './ui-tasks.js';
+import { renderTaskFilters, renderTaskList, estimateInfo, esc, TASK_COLORS } from './ui-tasks.js';
 import { renderWeek, renderMonth, timeAt, range, percentOf, minutesPerPx } from './ui-calendar.js';
 import { Calendars, calSettings } from './calendars.js';
 import { Google, preload as preloadGoogle } from './google.js';
@@ -774,6 +774,9 @@ function openTask(id) {
 function renderTaskDetails() {
   const task = model.task(editingId);
   if (!task) return;
+  $('#task-colors').innerHTML = TASK_COLORS.map(
+    (c) => `<button type="button" class="${(task.color || null) === c.key ? 'on' : ''}" style="--swatch:${c.hex}" data-color="${c.key ?? ''}" title="${c.name}" aria-label="${c.name}"></button>`,
+  ).join('');
   const status = task.archivedAt
     ? `Archiviert${task.activatedAt ? ' · war aktiv' : ''}`
     : task.activatedAt
@@ -1109,7 +1112,14 @@ function wireEvents() {
     saveTaskForm();
     editingId = null;
   });
-  $('#btn-archive-task').addEventListener('click', () => {
+  // Farbe wählen: sofort speichern
+  $('#task-colors').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-color]');
+    if (!b || !editingId) return;
+    model.updateTask(editingId, { color: b.dataset.color || null });
+    renderTaskDetails();
+  });
+    $('#btn-archive-task').addEventListener('click', () => {
     saveTaskForm();
     const task = model.task(editingId);
     model.updateTask(editingId, { archivedAt: task.archivedAt ? null : new Date().toISOString() });

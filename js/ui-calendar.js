@@ -4,7 +4,7 @@ import {
   today, addDays, startOfWeek, startOfMonth, weekdayShort, weekdayIndex, fmtDate, fmtHours, fmtDuration,
   toHHMM, fromHHMM, parse, isoWeek, WEEKDAYS,
 } from './dates.js';
-import { esc } from './ui-tasks.js';
+import { esc, taskColorStyle } from './ui-tasks.js';
 
 // Ampel: bis 66 % grün, bis 85 % gelb, darüber rot
 export function loadClass(ratio) {
@@ -152,7 +152,7 @@ export function renderWeek(model, cal, start, count, selected) {
           <div class="reserved">
             ${reserved
               .map(
-                (b) => `<div class="chip-booking" data-drag="booking" data-id="${b.id}" data-booking="${b.id}" data-label="${esc(titleOf(b))}">
+                (b) => `<div class="chip-booking" style="${taskColorStyle(model.task(b.taskId))}" data-drag="booking" data-id="${b.id}" data-booking="${b.id}" data-label="${esc(titleOf(b))}">
                   <span class="cb-title">${esc(titleOf(b))}</span><span class="cb-dur">${fmtDuration(b.minutes)}</span></div>`,
               )
               .join('')}
@@ -184,7 +184,7 @@ export function renderWeek(model, cal, start, count, selected) {
           const startMin = fromHHMM(b.start);
           const endMin = Math.min(startMin + b.minutes, 24 * 60);
           return `<div class="block ${startMin < r.from || endMin > r.to ? 'outside' : ''}" data-drag="booking" data-id="${b.id}" data-booking="${b.id}" data-label="${esc(titleOf(b))}"
-                       style="${place(startMin, endMin, r, lane, lanes)}">
+                       style="${taskColorStyle(model.task(b.taskId))}${place(startMin, endMin, r, lane, lanes)}">
                     <div class="block-title">${esc(titleOf(b))}</div>
                     <div class="block-time">${b.start}–${toHHMM(endMin)} · ${fmtDuration(b.minutes)}</div>
                     <div class="resize" data-nodrag data-resize="${b.id}" title="Dauer ziehen"></div>

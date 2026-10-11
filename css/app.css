@@ -202,7 +202,9 @@ body.resizing, body.resizing * { cursor: col-resize !important; user-select: non
   -webkit-touch-callout: none;
 }
 .task:hover { background: var(--bg); }
-.task.active { border-left-color: var(--accent); }
+.task.active { border-left-color: var(--task, var(--accent)); }
+.task.passive.colored { border-left-color: color-mix(in srgb, var(--task) 45%, transparent); }
+.task.passive.colored .state-dot { border-color: var(--task); }
 .task.active .task-title { font-weight: 600; }
 .task.archived { opacity: 0.6; }
 .task-main { min-width: 0; flex: 1; }
@@ -245,7 +247,7 @@ body.resizing, body.resizing * { cursor: col-resize !important; user-select: non
   border: 2px solid var(--line-strong);
   display: inline-block;
 }
-.task.active .state-dot, .state-dot.on { background: var(--accent); border-color: var(--accent); }
+.task.active .state-dot, .state-dot.on { background: var(--task, var(--accent)); border-color: var(--task, var(--accent)); }
 
 .badge { padding: 1px 7px; border-radius: 999px; font-size: 11.5px; white-space: nowrap; }
 .dl-later { background: var(--offhours); color: var(--muted); }
@@ -364,8 +366,9 @@ body.resizing, body.resizing * { cursor: col-resize !important; user-select: non
   justify-content: space-between;
   gap: 6px;
   font-size: 12px;
-  background: var(--accent-soft);
-  border: 1px solid var(--block-border);
+  background: color-mix(in srgb, var(--task, var(--accent)) 12%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--task, var(--accent)) 50%, var(--panel));
+  border-left: 3px solid var(--task, var(--accent));
   border-radius: 5px;
   padding: 2px 6px;
   cursor: grab;
@@ -405,9 +408,9 @@ body.resizing, body.resizing * { cursor: col-resize !important; user-select: non
   position: absolute;
   z-index: 1;
   min-height: 16px;
-  background: var(--block);
-  border: 1px solid var(--block-border);
-  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--task, var(--accent)) 17%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--task, var(--accent)) 50%, var(--panel));
+  border-left: 3px solid var(--task, var(--accent));
   border-radius: 5px;
   padding: 2px 6px;
   font-size: 12px;
@@ -421,8 +424,8 @@ body.resizing, body.resizing * { cursor: col-resize !important; user-select: non
 .block-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .block-time { font-size: 11px; color: var(--muted); white-space: nowrap; }
 .resize { position: absolute; left: 0; right: 0; bottom: 0; height: 10px; cursor: ns-resize; touch-action: none; }
-.resize::after { content: ""; position: absolute; left: 50%; bottom: 3px; width: 22px; margin-left: -11px; height: 3px; border-radius: 2px; background: var(--block-border); }
-.block:hover .resize::after, .block.resizing .resize::after { background: var(--accent); }
+.resize::after { content: ""; position: absolute; left: 50%; bottom: 3px; width: 22px; margin-left: -11px; height: 3px; border-radius: 2px; background: color-mix(in srgb, var(--task, var(--accent)) 45%, var(--panel)); }
+.block:hover .resize::after, .block.resizing .resize::after { background: var(--task, var(--accent)); }
 .block.resizing { z-index: 4; box-shadow: var(--shadow); }
 body.resizing-block, body.resizing-block * { cursor: ns-resize !important; user-select: none; }
 
@@ -685,3 +688,19 @@ dialog label.check input { width: auto; }
 .wday-head .reserved { cursor: cell; }
 .wday-head .reserved .chip-booking { cursor: grab; }
 .ext-event { cursor: default; }
+
+/* Farbauswahl im Aufgabendialog */
+.color-pick { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.color-pick button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--panel);
+  background: var(--swatch);
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+.color-pick button.on { box-shadow: 0 0 0 2px var(--text); }
+.color-pick button:hover { transform: scale(1.12); }
+dialog .field { display: flex; flex-direction: column; gap: 6px; }
+dialog .field-label { font-size: 13px; color: var(--muted); }

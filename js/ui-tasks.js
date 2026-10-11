@@ -3,6 +3,25 @@
 import { today, daysBetween, fmtDate, weekdayShort, fmtHours } from './dates.js';
 import { sortKey } from './model.js';
 
+// Farben für Aufgaben; gespeichert wird der Schlüssel (task.color), null = Standard
+export const TASK_COLORS = [
+  { key: null, name: 'Standard (Blau)', hex: '#2563eb' },
+  { key: 'green', name: 'Grün', hex: '#16a34a' },
+  { key: 'teal', name: 'Türkis', hex: '#0d9488' },
+  { key: 'amber', name: 'Bernstein', hex: '#d97706' },
+  { key: 'orange', name: 'Orange', hex: '#ea580c' },
+  { key: 'red', name: 'Rot', hex: '#dc2626' },
+  { key: 'pink', name: 'Pink', hex: '#db2777' },
+  { key: 'purple', name: 'Lila', hex: '#7c3aed' },
+  { key: 'slate', name: 'Grau', hex: '#64748b' },
+];
+
+// CSS-Variable für die Farbe einer Aufgabe (leer = Standard)
+export function taskColorStyle(task) {
+  const c = task?.color && TASK_COLORS.find((x) => x.key === task.color);
+  return c ? `--task:${c.hex};` : '';
+}
+
 export const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -105,7 +124,7 @@ export function renderTaskList(model, filter, armed = null) {
         meta.push(`<span class="badge ${e.cls}" title="${e.title}">${fmtHours(spent)} / ${fmtHours(task.estimateMinutes)} h</span>`);
       } else if (spent) meta.push(`<span class="planned">${fmtHours(spent)} h verplant</span>`);
       return `
-        <li class="task ${active ? 'active' : 'passive'} ${task.archivedAt ? 'archived' : ''}"
+        <li class="task ${active ? 'active' : 'passive'} ${task.archivedAt ? 'archived' : ''} ${task.color ? 'colored' : ''}" style="${taskColorStyle(task)}"
             data-drag="task" data-id="${task.id}" data-label="${esc(task.title)}" data-open-task="${task.id}">
           <span class="state-dot" title="${active ? 'Aktiv – war schon im Kalender' : 'Passiv – noch nie eingeplant'}"></span>
           <div class="task-main">
